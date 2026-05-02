@@ -562,10 +562,23 @@
                 }, 500);
             } else {
                 try {
-                    ytPlayer.loadVideoById({
-                        videoId: q.correctInst.videoId,
-                        startSeconds: q.startTime
-                    });
+                    // 現在読み込まれている動画のIDを取得
+                    let currentId = "";
+                    if (ytPlayer.getVideoData && typeof ytPlayer.getVideoData === 'function') {
+                        const videoData = ytPlayer.getVideoData();
+                        if (videoData) currentId = videoData.video_id;
+                    }
+                    
+                    // 同じ動画ならシーク(時間移動)だけ行い、異なる動画なら新規読み込みする
+                    if (currentId === q.correctInst.videoId) {
+                        ytPlayer.seekTo(q.startTime, true);
+                        ytPlayer.playVideo();
+                    } else {
+                        ytPlayer.loadVideoById({
+                            videoId: q.correctInst.videoId,
+                            startSeconds: q.startTime
+                        });
+                    }
                 } catch(e) {
                     fallbackMode = true;
                     gameState.isWaitingForPlay = false;
