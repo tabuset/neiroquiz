@@ -62,7 +62,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 40;
+            z-index: 60; /* yt-wrapper(50)より前面に表示するために40から60に変更 */
             font-size: 8rem;
             font-weight: bold;
             opacity: 0;
@@ -239,6 +239,69 @@
     <!-- YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
+        // ==========================================
+        // 0. 効果音 (Web Audio API)
+        // ==========================================
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            if (type === 'correct') {
+                // ピン (G5)
+                const osc1 = audioCtx.createOscillator();
+                const gain1 = audioCtx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.value = 783.99; // G5
+                osc1.connect(gain1);
+                gain1.connect(audioCtx.destination);
+                gain1.gain.setValueAtTime(0, now);
+                gain1.gain.linearRampToValueAtTime(0.3, now + 0.05);
+                gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc1.start(now);
+                osc1.stop(now + 0.3);
+
+                // ポン (C6)
+                const osc2 = audioCtx.createOscillator();
+                const gain2 = audioCtx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.value = 1046.50; // C6
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                gain2.gain.setValueAtTime(0, now + 0.15);
+                gain2.gain.linearRampToValueAtTime(0.3, now + 0.2);
+                gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                osc2.start(now + 0.15);
+                osc2.stop(now + 0.6);
+
+            } else if (type === 'incorrect' || type === 'timeup') {
+                // ブッブー (低い矩形波)
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.value = 164.81; // E3
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                gain.gain.setValueAtTime(0.2, now + 0.25);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+        }
+
         // ==========================================
         // 1. データ定義
         // ==========================================
@@ -440,6 +503,8 @@
             nameInput.addEventListener('input', checkStartButtonState);
 
             document.getElementById('btn-start').addEventListener('click', () => {
+                initAudio(); // 効果音の初期化
+                
                 appState.playerName = nameInput.value.trim();
                 saveData();
                 document.getElementById('header-player-name').textContent = appState.playerName;
@@ -575,7 +640,7 @@
                     isUnlocked ? 'bg-white border-green-200 hover:border-green-500 hover:bg-green-50' : 'bg-gray-100 border-gray-200 opacity-70 cursor-not-allowed'
                 }`;
                 btn.disabled = !isUnlocked;
-                btn.onclick = () => initGame('basic', i);
+                btn.onclick = () => { initAudio(); initGame('basic', i); };
                 
                 btn.innerHTML = `
                     <div>
@@ -598,7 +663,7 @@
                     isUnlocked ? 'bg-white border-yellow-300 hover:border-yellow-500 hover:bg-yellow-50' : 'bg-gray-100 border-gray-200 opacity-70 cursor-not-allowed'
                 }`;
                 btn.disabled = !isUnlocked;
-                btn.onclick = () => initGame('challenge', i);
+                btn.onclick = () => { initAudio(); initGame('challenge', i); };
                 
                 btn.innerHTML = `
                     <div class="font-bold text-xl mb-1 ${isUnlocked ? 'text-yellow-600' : 'text-gray-500'}">STAGE ${i}</div>
@@ -682,7 +747,10 @@
                 
                 btn.className = btnClass;
                 btn.textContent = opt.name;
-                btn.onclick = () => handleAnswer(opt.id, false);
+                btn.onclick = () => {
+                    initAudio();
+                    handleAnswer(opt.id, false);
+                };
                 optionsContainer.appendChild(btn);
             });
 
@@ -782,12 +850,15 @@
             if (isTimeUp) {
                 textEl.textContent = 'TIME UP';
                 textEl.classList.add('timeup');
+                playSound('timeup');
             } else if (isCorrect) {
                 textEl.innerHTML = '<i class="fa-regular fa-circle"></i>';
                 textEl.classList.add('correct');
+                playSound('correct');
             } else {
                 textEl.innerHTML = '<i class="fa-solid fa-xmark"></i>';
                 textEl.classList.add('incorrect');
+                playSound('incorrect');
             }
         }
 
