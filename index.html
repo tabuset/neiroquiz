@@ -115,6 +115,20 @@
             </div>
         </div>
 
+        <!-- 画面1.5: プリロード（広告消化＆準備）画面 -->
+        <div id="screen-preload" class="screen flex-col items-center justify-center h-full p-6 bg-slate-50 text-center relative overflow-hidden">
+            <i class="fa-solid fa-compact-disc fa-spin text-6xl text-green-400 mb-6 drop-shadow-md"></i>
+            <h2 class="text-2xl font-bold text-gray-700 mb-2">ゲームの準備中...</h2>
+            <p class="text-gray-500 mb-8 text-sm">動画の読み込みと広告の処理を行っています。<br>しばらくお待ちください。</p>
+            
+            <div class="w-full max-w-sm bg-gray-200 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
+                <div id="preload-progress" class="bg-green-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 3 完了</p>
+            
+            <button onclick="finishPreload()" class="mt-12 text-gray-400 underline text-sm hover:text-gray-600">スキップして進む</button>
+        </div>
+
         <!-- 画面2: ステージ選択 -->
         <div id="screen-stage" class="screen flex-col h-full bg-slate-50">
             <!-- タブ -->
@@ -167,9 +181,9 @@
                     <p class="font-bold text-gray-600">音源を準備中...</p>
                 </div>
 
-                <!-- 答え合わせ中の動画表示用ラッパー -->
+                <!-- 答え合わせ中の動画表示用ラッパー (複数プレイヤーを格納) -->
                 <div id="yt-wrapper">
-                    <div id="player"></div>
+                    <!-- JSでプレイヤーコンテナを動的生成します -->
                 </div>
 
                 <!-- 出題中の表示 -->
@@ -226,26 +240,50 @@
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
         // ==========================================
-        // 1. データ定義 (※プロトタイプ用仮データ)
+        // 1. データ定義
         // ==========================================
-        // ※世界的に埋め込み許可がされているNCSの動画をテスト用として設定しています
-        const TEST_VIDEO_ID = "K4DyBUG242c";
+        // 動画を3種類用意し、それぞれ変数に定義します。
+        // ※実際にお使いの動画IDに書き換えてください。
+        const VIDEO_A = "K4DyBUG242c"; // 動画A (テスト用)
+        const VIDEO_B = "M7lc1UVf-VE"; // 動画B (テスト用)
+        const VIDEO_C = "aqz-KE-bpKQ"; // 動画C (テスト用)
+        
+        // プリロード処理で管理するため、使用するすべての動画IDを配列にしておきます。
+        const uniqueVideoIds = [VIDEO_A, VIDEO_B, VIDEO_C];
+
+        // 各楽器について、どの動画の何秒目から再生するか（複数パターン）を指定できます。
         const ALL_INSTRUMENTS = [
-            { id: 0, name: "クラリネット", videoId: TEST_VIDEO_ID, starts: [10, 20, 30, 40, 50] },
-            { id: 1, name: "オーボエ", videoId: TEST_VIDEO_ID, starts: [60, 70, 80, 90, 100] },
-            { id: 2, name: "フルート", videoId: TEST_VIDEO_ID, starts: [110, 120, 130, 140, 150] },
-            { id: 3, name: "トランペット", videoId: TEST_VIDEO_ID, starts: [160, 170, 180, 190, 200] },
-            { id: 4, name: "トロンボーン", videoId: TEST_VIDEO_ID, starts: [210, 220, 230, 240, 250] },
-            { id: 5, name: "ホルン", videoId: TEST_VIDEO_ID, starts: [260, 270, 280, 290, 300] },
-            { id: 6, name: "ヴァイオリン", videoId: TEST_VIDEO_ID, starts: [310, 320, 330, 340, 350] },
-            { id: 7, name: "ヴィオラ", videoId: TEST_VIDEO_ID, starts: [360, 370, 380, 390, 400] },
-            { id: 8, name: "チェロ", videoId: TEST_VIDEO_ID, starts: [410, 420, 430, 440, 450] },
-            { id: 9, name: "コントラバス", videoId: TEST_VIDEO_ID, starts: [460, 470, 480, 490, 500] },
-            { id: 10, name: "ピアノ", videoId: TEST_VIDEO_ID, starts: [510, 520, 530, 540, 550] },
-            { id: 11, name: "ハープ", videoId: TEST_VIDEO_ID, starts: [560, 570, 580, 590, 600] },
-            { id: 12, name: "ティンパニ", videoId: TEST_VIDEO_ID, starts: [15, 25, 35, 45, 55] },
-            { id: 13, name: "スネアドラム", videoId: TEST_VIDEO_ID, starts: [65, 75, 85, 95, 105] },
-            { id: 14, name: "マリンバ", videoId: TEST_VIDEO_ID, starts: [115, 125, 135, 145, 155] }
+            { 
+                id: 0, 
+                name: "クラリネット", 
+                sources: [
+                    { videoId: VIDEO_A, start: 10 },
+                    { videoId: VIDEO_B, start: 25 },
+                    { videoId: VIDEO_C, start: 40 }
+                ] 
+            },
+            { 
+                id: 1, 
+                name: "オーボエ", 
+                sources: [
+                    { videoId: VIDEO_A, start: 20 },
+                    { videoId: VIDEO_B, start: 35 },
+                    { videoId: VIDEO_C, start: 50 }
+                ] 
+            },
+            { id: 2, name: "フルート", sources: [{ videoId: VIDEO_A, start: 30 }, { videoId: VIDEO_B, start: 45 }] },
+            { id: 3, name: "トランペット", sources: [{ videoId: VIDEO_A, start: 40 }, { videoId: VIDEO_C, start: 60 }] },
+            { id: 4, name: "トロンボーン", sources: [{ videoId: VIDEO_B, start: 55 }, { videoId: VIDEO_C, start: 70 }] },
+            { id: 5, name: "ホルン", sources: [{ videoId: VIDEO_A, start: 50 }] },
+            { id: 6, name: "ヴァイオリン", sources: [{ videoId: VIDEO_B, start: 65 }] },
+            { id: 7, name: "ヴィオラ", sources: [{ videoId: VIDEO_C, start: 80 }] },
+            { id: 8, name: "チェロ", sources: [{ videoId: VIDEO_A, start: 60 }] },
+            { id: 9, name: "コントラバス", sources: [{ videoId: VIDEO_B, start: 75 }] },
+            { id: 10, name: "ピアノ", sources: [{ videoId: VIDEO_C, start: 90 }] },
+            { id: 11, name: "ハープ", sources: [{ videoId: VIDEO_A, start: 70 }] },
+            { id: 12, name: "ティンパニ", sources: [{ videoId: VIDEO_B, start: 85 }] },
+            { id: 13, name: "スネアドラム", sources: [{ videoId: VIDEO_C, start: 100 }] },
+            { id: 14, name: "マリンバ", sources: [{ videoId: VIDEO_A, start: 80 }] }
         ];
 
         const PASS_SCORE = 8000;
@@ -269,18 +307,25 @@
             score: 0,
             timerId: null,
             startTimeMs: 0,
-            isWaitingForPlay: false
+            isWaitingForPlay: false,
+            currentVideoId: "" // 現在再生中の動画ID
         };
 
-        let ytPlayer = null;
+        // 複数のプレイヤーを管理するオブジェクト
+        let players = {};
         let isApiReady = false;
+        let readyCount = 0;
         let fallbackMode = false;
 
+        // プリロード用ステート
+        let isPreloading = false;
+        let preloadedVideos = new Set();
+        let preloadTimeoutId = null;
+
         // ==========================================
-        // 3. YouTube API 関連
+        // 3. YouTube API と プリロード関連
         // ==========================================
         function onYouTubeIframeAPIReady() {
-            // ローカルファイル(file://)実行時の153エラーを回避するためのダミーのオリジンを強制設定
             let currentOrigin = window.location.origin;
             if (!currentOrigin || currentOrigin === "null" || currentOrigin.startsWith("file")) {
                 currentOrigin = "http://localhost:8080"; 
@@ -296,47 +341,88 @@
                 'origin': currentOrigin
             };
 
-            ytPlayer = new YT.Player('player', {
-                height: '100%',
-                width: '100%',
-                videoId: ALL_INSTRUMENTS[0].videoId,
-                playerVars: playerVars,
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange,
-                    'onError': onPlayerError
-                }
+            const ytWrapper = document.getElementById('yt-wrapper');
+            ytWrapper.innerHTML = '';
+
+            // 使用する動画の数だけプレイヤーを生成
+            uniqueVideoIds.forEach(vid => {
+                // プレイヤー格納用の一時非表示divを作成
+                const div = document.createElement('div');
+                div.id = 'player-container-' + vid;
+                div.style.display = 'none';
+                div.style.width = '100%';
+                div.style.height = '100%';
+                
+                const playerDiv = document.createElement('div');
+                playerDiv.id = 'player-' + vid;
+                div.appendChild(playerDiv);
+                ytWrapper.appendChild(div);
+
+                players[vid] = new YT.Player('player-' + vid, {
+                    height: '100%',
+                    width: '100%',
+                    videoId: vid,
+                    playerVars: playerVars,
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': (e) => onPlayerStateChange(e, vid),
+                        'onError': (e) => onPlayerError(e, vid)
+                    }
+                });
             });
 
-            // タイムアウト監視（3秒経過してもYouTubeの準備が完了しない場合は強制進行）
+            // タイムアウト監視（5秒経過しても全APIの準備が完了しない場合は強制スタンバイ）
             setTimeout(() => {
                 if (!isApiReady) {
-                    console.warn("YouTube APIの準備がタイムアウトしました。音声なしのフォールバックモードで起動します。");
+                    console.warn("YouTube APIの準備がタイムアウトしました。");
                     fallbackMode = true;
                     isApiReady = true;
                     document.getElementById('api-loading-msg').classList.add('hidden');
                     checkStartButtonState();
                 }
-            }, 3000);
+            }, 5000);
         }
 
         function onPlayerReady(event) {
-            isApiReady = true;
-            document.getElementById('api-loading-msg').classList.add('hidden');
-            checkStartButtonState();
-        }
-
-        function onPlayerStateChange(event) {
-            if (gameState.isWaitingForPlay && event.data === YT.PlayerState.PLAYING) {
-                gameState.isWaitingForPlay = false;
-                startQuestionTimer();
+            readyCount++;
+            // 全てのプレイヤーが準備完了したらスタートボタンを有効化
+            if (readyCount === uniqueVideoIds.length && !isApiReady) {
+                isApiReady = true;
+                document.getElementById('api-loading-msg').classList.add('hidden');
+                checkStartButtonState();
             }
         }
 
-        function onPlayerError(event) {
-            console.warn("YouTube API restricted in this environment (Code: " + event.data + "). Fallback mode activated.");
+        function onPlayerStateChange(event, vid) {
+            // [プリロード中の処理]
+            if (isPreloading) {
+                // 動画が再生開始(広告含む)されたらすぐにミュートのまま一時停止させ、プリロード完了とする
+                if (event.data === YT.PlayerState.PLAYING) {
+                    try { players[vid].pauseVideo(); } catch(e){}
+                    if (!preloadedVideos.has(vid)) {
+                        preloadedVideos.add(vid);
+                        updatePreloadUI();
+                    }
+                }
+            } 
+            // [ゲーム中の処理]
+            else if (gameState.isWaitingForPlay && event.data === YT.PlayerState.PLAYING) {
+                // 待機中の動画IDがPLAYINGになったらタイマー開始
+                if (gameState.currentVideoId === vid) {
+                    gameState.isWaitingForPlay = false;
+                    startQuestionTimer();
+                }
+            }
+        }
+
+        function onPlayerError(event, vid) {
+            console.warn(`Youtubeer [${vid}] Error: Code ${event.data}. Fallback mode activated.`);
             fallbackMode = true;
-            if (gameState.isWaitingForPlay) {
+            
+            if (isPreloading && !preloadedVideos.has(vid)) {
+                preloadedVideos.add(vid);
+                updatePreloadUI();
+            } else if (gameState.isWaitingForPlay) {
                 gameState.isWaitingForPlay = false;
                 startQuestionTimer();
             }
@@ -359,18 +445,8 @@
                 document.getElementById('header-player-name').textContent = appState.playerName;
                 document.getElementById('header-player-name').classList.remove('hidden');
                 
-                if (!fallbackMode && ytPlayer && typeof ytPlayer.mute === 'function') {
-                    try {
-                        ytPlayer.mute();
-                        ytPlayer.playVideo();
-                        setTimeout(() => {
-                            ytPlayer.pauseVideo();
-                            ytPlayer.unMute();
-                        }, 500);
-                    } catch(e){}
-                }
-
-                goToStageSelect();
+                // スタートボタン押下と同時にプリロード（広告消化）を開始する
+                startPreload();
             });
         });
 
@@ -399,7 +475,63 @@
         }
 
         // ==========================================
-        // 5. ステージ選択画面
+        // 5. プリロード（広告消化）画面の制御
+        // ==========================================
+        function startPreload() {
+            isPreloading = true;
+            preloadedVideos.clear();
+            updatePreloadUI();
+            showScreen('screen-preload');
+
+            if (fallbackMode) {
+                finishPreload();
+                return;
+            }
+
+            // 全てのプレイヤーに対して、ミュート状態で再生命令を出し、広告処理などをトリガーさせる
+            uniqueVideoIds.forEach(vid => {
+                try {
+                    players[vid].mute();
+                    players[vid].playVideo();
+                } catch(e) {
+                    preloadedVideos.add(vid);
+                    updatePreloadUI();
+                }
+            });
+
+            // 15秒待っても終わらない場合は強制的に次へ進む（長すぎる広告やエラー対策）
+            preloadTimeoutId = setTimeout(() => {
+                if (isPreloading) {
+                    uniqueVideoIds.forEach(vid => {
+                        try { players[vid].pauseVideo(); } catch(e){}
+                    });
+                    finishPreload();
+                }
+            }, 15000);
+        }
+
+        function updatePreloadUI() {
+            const total = uniqueVideoIds.length;
+            const current = preloadedVideos.size;
+            const percentage = Math.floor((current / total) * 100);
+            
+            document.getElementById('preload-progress').style.width = percentage + '%';
+            document.getElementById('preload-status-text').textContent = `${current} / ${total} 完了`;
+            
+            if (current >= total && isPreloading) {
+                clearTimeout(preloadTimeoutId);
+                // 少しだけ待ってからステージ選択へ
+                setTimeout(finishPreload, 600);
+            }
+        }
+
+        function finishPreload() {
+            isPreloading = false;
+            goToStageSelect();
+        }
+
+        // ==========================================
+        // 6. ステージ選択画面
         // ==========================================
         function goToStageSelect() {
             renderStageButtons();
@@ -478,7 +610,7 @@
         }
 
         // ==========================================
-        // 6. ゲームロジック
+        // 7. ゲームロジック
         // ==========================================
         function initGame(mode, stage) {
             gameState.mode = mode;
@@ -506,11 +638,13 @@
                 } while (inst.id === lastInstId && availableInstruments.length > 1);
                 
                 lastInstId = inst.id;
-                const startTime = inst.starts[Math.floor(Math.random() * inst.starts.length)];
+                
+                // 楽器の sources 配列から、ランダムに動画IDと開始時間のセットを1つ選ぶ
+                const sourceData = inst.sources[Math.floor(Math.random() * inst.sources.length)];
                 
                 gameState.questions.push({
                     correctInst: inst,
-                    startTime: startTime,
+                    source: sourceData,
                     options: availableInstruments 
                 });
             }
@@ -527,6 +661,7 @@
             }
 
             const q = gameState.questions[gameState.currentIndex];
+            gameState.currentVideoId = q.source.videoId;
             
             document.getElementById('question-number').textContent = gameState.currentIndex + 1;
             document.getElementById('timer-bar').style.width = '100%';
@@ -551,9 +686,15 @@
                 optionsContainer.appendChild(btn);
             });
 
+            // 今回出題する動画のプレイヤーのみを表示状態にする
+            uniqueVideoIds.forEach(vid => {
+                const el = document.getElementById('player-container-' + vid);
+                if (el) el.style.display = (vid === gameState.currentVideoId) ? 'block' : 'none';
+            });
+
             gameState.isWaitingForPlay = true;
             
-            if (fallbackMode || !ytPlayer || typeof ytPlayer.loadVideoById !== 'function') {
+            if (fallbackMode || !players[gameState.currentVideoId]) {
                 setTimeout(() => {
                     if(gameState.isWaitingForPlay) {
                         gameState.isWaitingForPlay = false;
@@ -562,23 +703,11 @@
                 }, 500);
             } else {
                 try {
-                    // 現在読み込まれている動画のIDを取得
-                    let currentId = "";
-                    if (ytPlayer.getVideoData && typeof ytPlayer.getVideoData === 'function') {
-                        const videoData = ytPlayer.getVideoData();
-                        if (videoData) currentId = videoData.video_id;
-                    }
-                    
-                    // 同じ動画ならシーク(時間移動)だけ行い、異なる動画なら新規読み込みする
-                    if (currentId === q.correctInst.videoId) {
-                        ytPlayer.seekTo(q.startTime, true);
-                        ytPlayer.playVideo();
-                    } else {
-                        ytPlayer.loadVideoById({
-                            videoId: q.correctInst.videoId,
-                            startSeconds: q.startTime
-                        });
-                    }
+                    const targetPlayer = players[gameState.currentVideoId];
+                    // ミュートを解除して目的の秒数にシークし再生
+                    targetPlayer.unMute();
+                    targetPlayer.seekTo(q.source.start, true);
+                    targetPlayer.playVideo();
                 } catch(e) {
                     fallbackMode = true;
                     gameState.isWaitingForPlay = false;
@@ -632,9 +761,12 @@
             
             setTimeout(() => {
                 document.getElementById('yt-wrapper').classList.remove('show');
-                if(!fallbackMode && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
-                    try { ytPlayer.pauseVideo(); } catch(e){}
+                
+                // 現在再生しているプレイヤーを一時停止
+                if(!fallbackMode && players[gameState.currentVideoId]) {
+                    try { players[gameState.currentVideoId].pauseVideo(); } catch(e){}
                 }
+                
                 gameState.currentIndex++;
                 playNextQuestion();
             }, 1000);
@@ -664,7 +796,7 @@
         }
 
         // ==========================================
-        // 7. リザルト・合否判定
+        // 8. リザルト・合否判定
         // ==========================================
         function showResult() {
             showScreen('screen-result');
