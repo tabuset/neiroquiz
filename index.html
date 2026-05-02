@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音色クイズ - 楽器を当てよう！</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f0fdf4; /* 薄い緑系の背景 */
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* YouTubeプレイヤーのラッパー */
+        #yt-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 560px;
+            aspect-ratio: 16 / 9;
+            z-index: 50;
+            pointer-events: none; /* クリック不可に */
+            opacity: 0; /* 通常は隠す */
+            transition: opacity 0.2s;
+            border: 4px solid #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            background: #000;
+            overflow: hidden;
+        }
+
+        #yt-wrapper.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 正誤判定のエフェクト */
+        #feedback-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 40;
+            font-size: 8rem;
+            font-weight: bold;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+            transform: scale(0.5);
+        }
+
+        #feedback-overlay.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .correct { color: #ef4444; text-shadow: 0 0 20px rgba(255,255,255,0.8); } /* 赤色の丸 */
+        .incorrect { color: #3b82f6; text-shadow: 0 0 20px rgba(255,255,255,0.8); } /* 青色のバツ */
+        .timeup { color: #f59e0b; font-size: 5rem !important; text-shadow: 0 0 20px rgba(255,255,255,0.8); }
+
+        /* スクロールバー非表示 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="text-slate-800 h-screen w-screen overflow-hidden">
+
+    <div id="app" class="relative max-w-2xl mx-auto h-full bg-white shadow-2xl flex flex-col">
+        
+        <!-- ヘッダー -->
+        <header class="bg-green-500 text-white p-4 flex justify-between items-center shrink-0 shadow-md z-10">
+            <h1 class="text-xl font-bold"><i class="fa-solid fa-music mr-2"></i>音色クイズ</h1>
+            <div id="header-player-name" class="font-bold hidden"></div>
+        </header>
+
+        <!-- 画面1: スタート＆名前入力 -->
+        <div id="screen-start" class="screen active flex-col items-center justify-center h-full p-6 space-y-8 relative overflow-hidden">
+            <div class="absolute top-10 left-10 text-green-200 opacity-50 text-6xl rotate-12"><i class="fa-solid fa-guitar"></i></div>
+            <div class="absolute bottom-20 right-10 text-green-200 opacity-50 text-6xl -rotate-12"><i class="fa-solid fa-drum"></i></div>
+            
+            <div class="text-center z-10">
+                <h2 class="text-4xl font-bold text-green-600 mb-2">音色クイズ</h2>
+                <p class="text-gray-500">楽器の音を聴き分けて目指せ満点！</p>
+            </div>
+            
+            <div class="w-full max-w-sm z-10 bg-green-50 p-6 rounded-2xl border-2 border-green-100 shadow-sm">
+                <label for="player-name" class="block text-sm font-bold text-gray-700 mb-2">プレイヤー名を入力してください</label>
+                <input type="text" id="player-name" class="w-full p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-lg mb-4" placeholder="なまえ">
+                <button id="btn-start" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                    ゲームスタート
+                </button>
+                <p id="api-loading-msg" class="text-xs text-center text-gray-400 mt-2">システム準備中...</p>
+            </div>
+        </div>
+
+        <!-- 画面2: ステージ選択 -->
+        <div id="screen-stage" class="screen flex-col h-full bg-slate-50">
+            <!-- タブ -->
+            <div class="flex border-b bg-white shrink-0">
+                <button id="tab-basic" class="flex-1 py-3 font-bold text-green-600 border-b-4 border-green-500 transition" onclick="switchTab('basic')">基本モード</button>
+                <button id="tab-challenge" class="flex-1 py-3 font-bold text-gray-400 border-b-4 border-transparent hover:text-gray-600 transition" onclick="switchTab('challenge')">チャレンジモード</button>
+            </div>
+
+            <!-- ステージリスト -->
+            <div class="flex-1 overflow-y-auto p-6 no-scrollbar relative">
+                
+                <!-- 基本モードのステージ -->
+                <div id="list-basic" class="space-y-4">
+                    <p class="text-sm text-gray-500 mb-4 text-center">3つの楽器から出題されます。<br>8000点以上で次のステージ解放！</p>
+                    <div id="basic-buttons-container" class="space-y-3">
+                        <!-- JSで生成 -->
+                    </div>
+                </div>
+
+                <!-- チャレンジモードのステージ -->
+                <div id="list-challenge" class="hidden space-y-4">
+                    <p class="text-sm text-gray-500 mb-4 text-center">基本モード全クリアで解放！<br>ステージごとに選択肢が増えていきます。</p>
+                    <div id="challenge-buttons-container" class="grid grid-cols-2 gap-3">
+                        <!-- JSで生成 -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 画面3: ゲームプレイ -->
+        <div id="screen-game" class="screen flex-col h-full bg-slate-50 relative">
+            <!-- ゲームヘッダー -->
+            <div class="flex justify-between items-center p-4 bg-white shadow-sm shrink-0">
+                <div class="font-bold text-lg text-gray-700">第 <span id="question-number" class="text-green-500 text-2xl">1</span> / 10 問</div>
+                <div class="font-bold text-gray-500">スコア: <span id="current-score" class="text-slate-800">0</span></div>
+            </div>
+
+            <!-- タイマーバー -->
+            <div class="w-full bg-gray-200 h-3 shrink-0">
+                <div id="timer-bar" class="bg-green-500 h-3 transition-all ease-linear" style="width: 100%;"></div>
+            </div>
+
+            <!-- プレイエリア -->
+            <div class="flex-1 flex flex-col p-4 relative">
+                
+                <!-- 準備中オーバーレイ -->
+                <div id="loading-overlay" class="absolute inset-0 bg-slate-50 flex flex-col items-center justify-center z-20">
+                    <i class="fa-solid fa-circle-notch fa-spin text-4xl text-green-500 mb-4"></i>
+                    <p class="font-bold text-gray-600">音源を準備中...</p>
+                </div>
+
+                <!-- 答え合わせ中の動画表示用ラッパー -->
+                <div id="yt-wrapper">
+                    <div id="player"></div>
+                </div>
+
+                <!-- 出題中の表示 -->
+                <div id="game-ui" class="flex-1 flex flex-col items-center justify-center hidden w-full">
+                    <div class="w-24 h-24 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-8 shadow-inner animate-pulse">
+                        <i class="fa-solid fa-volume-high text-4xl"></i>
+                    </div>
+                    <p class="text-xl font-bold text-gray-700 mb-8">聴こえる楽器はどれ？</p>
+                    
+                    <!-- 選択肢ボタン (JSで生成) -->
+                    <div id="options-container" class="w-full flex flex-wrap justify-center gap-3">
+                        <!-- ボタン -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 正誤判定表示 -->
+            <div id="feedback-overlay">
+                <span id="feedback-text"></span>
+            </div>
+        </div>
+
+        <!-- 画面4: リザルト -->
+        <div id="screen-result" class="screen flex-col items-center justify-center h-full p-6 bg-slate-50 text-center relative overflow-hidden">
+            <div id="confetti" class="absolute inset-0 pointer-events-none hidden"></div>
+            
+            <h2 class="text-3xl font-bold text-gray-700 mb-2">結果発表</h2>
+            <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm mb-6 border-t-8 border-green-500">
+                <p class="text-gray-500 mb-2">あなたのスコアは...</p>
+                <div class="text-6xl font-bold text-slate-800 mb-4"><span id="result-score">0</span><span class="text-2xl ml-1 text-gray-400">点</span></div>
+                
+                <div id="result-status" class="text-2xl font-bold mb-2"></div>
+                <p id="result-message" class="text-gray-600 text-sm"></p>
+            </div>
+            
+            <button onclick="goToStageSelect()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-8 rounded-full transition shadow-md w-full max-w-xs">
+                ステージ選択に戻る
+            </button>
+        </div>
+
+        <!-- 画面5: エンディング -->
+        <div id="screen-ending" class="screen flex-col items-center justify-center h-full p-6 bg-yellow-50 text-center">
+            <i class="fa-solid fa-trophy text-6xl text-yellow-400 mb-6 drop-shadow-md"></i>
+            <h2 class="text-4xl font-bold text-yellow-600 mb-4">CONGRATULATIONS!</h2>
+            <p class="text-lg text-gray-700 mb-8">すべてのステージをクリアしました！<br><span id="ending-player-name" class="font-bold"></span>さんは、真の楽器マスターです！</p>
+            <button onclick="goToStageSelect()" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-full transition shadow-md">
+                タイトルに戻る
+            </button>
+        </div>
+
+    </div>
+
+    <!-- YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        // ==========================================
+        // 1. データ定義 (※プロトタイプ用仮データ)
+        // ==========================================
+        // ※世界的に埋め込み許可がされているNCSの動画をテスト用として設定しています
+        const TEST_VIDEO_ID = "K4DyBUG242c";
+        const ALL_INSTRUMENTS = [
+            { id: 0, name: "クラリネット", videoId: TEST_VIDEO_ID, starts: [10, 20, 30, 40, 50] },
+            { id: 1, name: "オーボエ", videoId: TEST_VIDEO_ID, starts: [60, 70, 80, 90, 100] },
+            { id: 2, name: "フルート", videoId: TEST_VIDEO_ID, starts: [110, 120, 130, 140, 150] },
+            { id: 3, name: "トランペット", videoId: TEST_VIDEO_ID, starts: [160, 170, 180, 190, 200] },
+            { id: 4, name: "トロンボーン", videoId: TEST_VIDEO_ID, starts: [210, 220, 230, 240, 250] },
+            { id: 5, name: "ホルン", videoId: TEST_VIDEO_ID, starts: [260, 270, 280, 290, 300] },
+            { id: 6, name: "ヴァイオリン", videoId: TEST_VIDEO_ID, starts: [310, 320, 330, 340, 350] },
+            { id: 7, name: "ヴィオラ", videoId: TEST_VIDEO_ID, starts: [360, 370, 380, 390, 400] },
+            { id: 8, name: "チェロ", videoId: TEST_VIDEO_ID, starts: [410, 420, 430, 440, 450] },
+            { id: 9, name: "コントラバス", videoId: TEST_VIDEO_ID, starts: [460, 470, 480, 490, 500] },
+            { id: 10, name: "ピアノ", videoId: TEST_VIDEO_ID, starts: [510, 520, 530, 540, 550] },
+            { id: 11, name: "ハープ", videoId: TEST_VIDEO_ID, starts: [560, 570, 580, 590, 600] },
+            { id: 12, name: "ティンパニ", videoId: TEST_VIDEO_ID, starts: [15, 25, 35, 45, 55] },
+            { id: 13, name: "スネアドラム", videoId: TEST_VIDEO_ID, starts: [65, 75, 85, 95, 105] },
+            { id: 14, name: "マリンバ", videoId: TEST_VIDEO_ID, starts: [115, 125, 135, 145, 155] }
+        ];
+
+        const PASS_SCORE = 8000;
+        const EXCELLENT_SCORE = 9000;
+        const MAX_BASIC_STAGE = 5;
+        const MAX_CHALLENGE_STAGE = 12;
+
+        // ==========================================
+        // 2. アプリケーションの状態
+        // ==========================================
+        let appState = {
+            playerName: "",
+            progress: { basic: 1, challenge: 0 }
+        };
+        
+        let gameState = {
+            mode: "",
+            stage: 1,
+            questions: [],
+            currentIndex: 0,
+            score: 0,
+            timerId: null,
+            startTimeMs: 0,
+            isWaitingForPlay: false
+        };
+
+        let ytPlayer = null;
+        let isApiReady = false;
+        let fallbackMode = false;
+
+        // ==========================================
+        // 3. YouTube API 関連
+        // ==========================================
+        function onYouTubeIframeAPIReady() {
+            // ローカルファイル(file://)実行時の153エラーを回避するためのダミーのオリジンを強制設定
+            let currentOrigin = window.location.origin;
+            if (!currentOrigin || currentOrigin === "null" || currentOrigin.startsWith("file")) {
+                currentOrigin = "http://localhost:8080"; 
+            }
+
+            const playerVars = {
+                'playsinline': 1,
+                'controls': 0,
+                'disablekb': 1,
+                'fs': 0,
+                'rel': 0,
+                'modestbranding': 1,
+                'origin': currentOrigin
+            };
+
+            ytPlayer = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: ALL_INSTRUMENTS[0].videoId,
+                playerVars: playerVars,
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
+                }
+            });
+
+            // タイムアウト監視（3秒経過してもYouTubeの準備が完了しない場合は強制進行）
+            setTimeout(() => {
+                if (!isApiReady) {
+                    console.warn("YouTube APIの準備がタイムアウトしました。音声なしのフォールバックモードで起動します。");
+                    fallbackMode = true;
+                    isApiReady = true;
+                    document.getElementById('api-loading-msg').classList.add('hidden');
+                    checkStartButtonState();
+                }
+            }, 3000);
+        }
+
+        function onPlayerReady(event) {
+            isApiReady = true;
+            document.getElementById('api-loading-msg').classList.add('hidden');
+            checkStartButtonState();
+        }
+
+        function onPlayerStateChange(event) {
+            if (gameState.isWaitingForPlay && event.data === YT.PlayerState.PLAYING) {
+                gameState.isWaitingForPlay = false;
+                startQuestionTimer();
+            }
+        }
+
+        function onPlayerError(event) {
+            console.warn("YouTube API restricted in this environment (Code: " + event.data + "). Fallback mode activated.");
+            fallbackMode = true;
+            if (gameState.isWaitingForPlay) {
+                gameState.isWaitingForPlay = false;
+                startQuestionTimer();
+            }
+        }
+
+        // ==========================================
+        // 4. UI ナビゲーションと初期化
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            
+            const nameInput = document.getElementById('player-name');
+            if(appState.playerName) nameInput.value = appState.playerName;
+            
+            nameInput.addEventListener('input', checkStartButtonState);
+
+            document.getElementById('btn-start').addEventListener('click', () => {
+                appState.playerName = nameInput.value.trim();
+                saveData();
+                document.getElementById('header-player-name').textContent = appState.playerName;
+                document.getElementById('header-player-name').classList.remove('hidden');
+                
+                if (!fallbackMode && ytPlayer && typeof ytPlayer.mute === 'function') {
+                    try {
+                        ytPlayer.mute();
+                        ytPlayer.playVideo();
+                        setTimeout(() => {
+                            ytPlayer.pauseVideo();
+                            ytPlayer.unMute();
+                        }, 500);
+                    } catch(e){}
+                }
+
+                goToStageSelect();
+            });
+        });
+
+        function checkStartButtonState() {
+            const btn = document.getElementById('btn-start');
+            const name = document.getElementById('player-name').value.trim();
+            btn.disabled = !(isApiReady && name.length > 0);
+        }
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('toneQuizSaveData');
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                } catch (e) { console.error("Save data parse error"); }
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('toneQuizSaveData', JSON.stringify(appState));
+        }
+
+        // ==========================================
+        // 5. ステージ選択画面
+        // ==========================================
+        function goToStageSelect() {
+            renderStageButtons();
+            showScreen('screen-stage');
+            switchTab(appState.progress.challenge > 0 ? 'challenge' : 'basic');
+        }
+
+        function switchTab(mode) {
+            const tabBasic = document.getElementById('tab-basic');
+            const tabChallenge = document.getElementById('tab-challenge');
+            const listBasic = document.getElementById('list-basic');
+            const listChallenge = document.getElementById('list-challenge');
+
+            if (mode === 'basic') {
+                tabBasic.className = "flex-1 py-3 font-bold text-green-600 border-b-4 border-green-500 transition";
+                tabChallenge.className = "flex-1 py-3 font-bold text-gray-400 border-b-4 border-transparent hover:text-gray-600 transition";
+                listBasic.classList.remove('hidden');
+                listChallenge.classList.add('hidden');
+            } else {
+                if (appState.progress.challenge === 0) {
+                    alert("基本モードをすべてクリアすると解放されます！");
+                    return;
+                }
+                tabChallenge.className = "flex-1 py-3 font-bold text-green-600 border-b-4 border-green-500 transition";
+                tabBasic.className = "flex-1 py-3 font-bold text-gray-400 border-b-4 border-transparent hover:text-gray-600 transition";
+                listChallenge.classList.remove('hidden');
+                listBasic.classList.add('hidden');
+            }
+        }
+
+        function renderStageButtons() {
+            const basicContainer = document.getElementById('basic-buttons-container');
+            basicContainer.innerHTML = '';
+            for (let i = 1; i <= MAX_BASIC_STAGE; i++) {
+                const isUnlocked = i <= appState.progress.basic;
+                const startIndex = (i - 1) * 3;
+                const instrumentsText = ALL_INSTRUMENTS.slice(startIndex, startIndex + 3).map(inst => inst.name).join(' / ');
+                
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left p-4 rounded-xl shadow-sm border-2 transition flex items-center justify-between ${
+                    isUnlocked ? 'bg-white border-green-200 hover:border-green-500 hover:bg-green-50' : 'bg-gray-100 border-gray-200 opacity-70 cursor-not-allowed'
+                }`;
+                btn.disabled = !isUnlocked;
+                btn.onclick = () => initGame('basic', i);
+                
+                btn.innerHTML = `
+                    <div>
+                        <div class="font-bold text-lg ${isUnlocked ? 'text-green-700' : 'text-gray-500'}">ステージ ${i}</div>
+                        <div class="text-sm text-gray-500 mt-1">${instrumentsText}</div>
+                    </div>
+                    <div>
+                        ${isUnlocked ? '<i class="fa-solid fa-play text-green-500 text-xl"></i>' : '<i class="fa-solid fa-lock text-gray-400 text-xl"></i>'}
+                    </div>
+                `;
+                basicContainer.appendChild(btn);
+            }
+
+            const challengeContainer = document.getElementById('challenge-buttons-container');
+            challengeContainer.innerHTML = '';
+            for (let i = 1; i <= MAX_CHALLENGE_STAGE; i++) {
+                const isUnlocked = i <= appState.progress.challenge;
+                const btn = document.createElement('button');
+                btn.className = `p-4 rounded-xl shadow-sm border-2 transition flex flex-col items-center justify-center aspect-square ${
+                    isUnlocked ? 'bg-white border-yellow-300 hover:border-yellow-500 hover:bg-yellow-50' : 'bg-gray-100 border-gray-200 opacity-70 cursor-not-allowed'
+                }`;
+                btn.disabled = !isUnlocked;
+                btn.onclick = () => initGame('challenge', i);
+                
+                btn.innerHTML = `
+                    <div class="font-bold text-xl mb-1 ${isUnlocked ? 'text-yellow-600' : 'text-gray-500'}">STAGE ${i}</div>
+                    <div class="text-xs text-gray-500 mb-2">${i + 3}つの楽器</div>
+                    ${isUnlocked ? '<i class="fa-solid fa-star text-yellow-400 text-2xl"></i>' : '<i class="fa-solid fa-lock text-gray-400 text-2xl"></i>'}
+                `;
+                challengeContainer.appendChild(btn);
+            }
+        }
+
+        // ==========================================
+        // 6. ゲームロジック
+        // ==========================================
+        function initGame(mode, stage) {
+            gameState.mode = mode;
+            gameState.stage = stage;
+            gameState.currentIndex = 0;
+            gameState.score = 0;
+            gameState.questions = [];
+
+            let availableInstruments = [];
+            
+            if (mode === 'basic') {
+                const startIndex = (stage - 1) * 3;
+                availableInstruments = ALL_INSTRUMENTS.slice(startIndex, startIndex + 3);
+            } else {
+                const count = Math.min(stage + 3, ALL_INSTRUMENTS.length);
+                const shuffled = [...ALL_INSTRUMENTS].sort(() => 0.5 - Math.random());
+                availableInstruments = shuffled.slice(0, count);
+            }
+
+            let lastInstId = -1;
+            for (let i = 0; i < 10; i++) {
+                let inst;
+                do {
+                    inst = availableInstruments[Math.floor(Math.random() * availableInstruments.length)];
+                } while (inst.id === lastInstId && availableInstruments.length > 1);
+                
+                lastInstId = inst.id;
+                const startTime = inst.starts[Math.floor(Math.random() * inst.starts.length)];
+                
+                gameState.questions.push({
+                    correctInst: inst,
+                    startTime: startTime,
+                    options: availableInstruments 
+                });
+            }
+
+            updateScoreDisplay();
+            showScreen('screen-game');
+            playNextQuestion();
+        }
+
+        function playNextQuestion() {
+            if (gameState.currentIndex >= 10) {
+                showResult();
+                return;
+            }
+
+            const q = gameState.questions[gameState.currentIndex];
+            
+            document.getElementById('question-number').textContent = gameState.currentIndex + 1;
+            document.getElementById('timer-bar').style.width = '100%';
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('game-ui').classList.add('hidden');
+            document.getElementById('yt-wrapper').classList.remove('show');
+            document.getElementById('feedback-overlay').classList.remove('show');
+
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.innerHTML = '';
+            
+            const shuffledOptions = [...q.options].sort(() => 0.5 - Math.random());
+            shuffledOptions.forEach(opt => {
+                const btn = document.createElement('button');
+                const btnClass = q.options.length > 6 
+                    ? "bg-white border-2 border-gray-200 hover:border-green-500 text-gray-700 font-bold py-2 px-3 rounded-lg shadow-sm transition text-sm flex-grow"
+                    : "bg-white border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 text-gray-700 font-bold py-3 px-6 rounded-xl shadow-sm transition w-[45%] text-center";
+                
+                btn.className = btnClass;
+                btn.textContent = opt.name;
+                btn.onclick = () => handleAnswer(opt.id, false);
+                optionsContainer.appendChild(btn);
+            });
+
+            gameState.isWaitingForPlay = true;
+            
+            if (fallbackMode || !ytPlayer || typeof ytPlayer.loadVideoById !== 'function') {
+                setTimeout(() => {
+                    if(gameState.isWaitingForPlay) {
+                        gameState.isWaitingForPlay = false;
+                        startQuestionTimer();
+                    }
+                }, 500);
+            } else {
+                try {
+                    ytPlayer.loadVideoById({
+                        videoId: q.correctInst.videoId,
+                        startSeconds: q.startTime
+                    });
+                } catch(e) {
+                    fallbackMode = true;
+                    gameState.isWaitingForPlay = false;
+                    startQuestionTimer();
+                }
+            }
+        }
+
+        function startQuestionTimer() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+            document.getElementById('game-ui').classList.remove('hidden');
+            
+            gameState.startTimeMs = Date.now();
+            
+            function update() {
+                const elapsed = (Date.now() - gameState.startTimeMs) / 1000;
+                const remaining = Math.max(0, 10 - Math.min(10, elapsed));
+                
+                document.getElementById('timer-bar').style.width = (remaining * 10) + '%';
+                
+                if (remaining <= 0) {
+                    handleAnswer(null, false); 
+                } else {
+                    gameState.timerId = requestAnimationFrame(update);
+                }
+            }
+            update();
+        }
+
+        function handleAnswer(selectedId, isErrorSkip) {
+            cancelAnimationFrame(gameState.timerId);
+            
+            const q = gameState.questions[gameState.currentIndex];
+            const elapsed = (Date.now() - gameState.startTimeMs) / 1000;
+            const isCorrect = selectedId === q.correctInst.id;
+            
+            const buttons = document.getElementById('options-container').querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            if (!isErrorSkip) {
+                if (isCorrect) {
+                    const remaining = Math.max(0, 10 - elapsed);
+                    const earned = Math.floor(remaining * 100);
+                    gameState.score += earned;
+                    updateScoreDisplay();
+                }
+                showFeedback(isCorrect, selectedId === null);
+            }
+
+            document.getElementById('yt-wrapper').classList.add('show');
+            
+            setTimeout(() => {
+                document.getElementById('yt-wrapper').classList.remove('show');
+                if(!fallbackMode && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+                    try { ytPlayer.pauseVideo(); } catch(e){}
+                }
+                gameState.currentIndex++;
+                playNextQuestion();
+            }, 1000);
+        }
+
+        function showFeedback(isCorrect, isTimeUp) {
+            const overlay = document.getElementById('feedback-overlay');
+            const textEl = document.getElementById('feedback-text');
+            
+            overlay.className = 'show';
+            textEl.className = '';
+
+            if (isTimeUp) {
+                textEl.textContent = 'TIME UP';
+                textEl.classList.add('timeup');
+            } else if (isCorrect) {
+                textEl.innerHTML = '<i class="fa-regular fa-circle"></i>';
+                textEl.classList.add('correct');
+            } else {
+                textEl.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                textEl.classList.add('incorrect');
+            }
+        }
+
+        function updateScoreDisplay() {
+            document.getElementById('current-score').textContent = gameState.score;
+        }
+
+        // ==========================================
+        // 7. リザルト・合否判定
+        // ==========================================
+        function showResult() {
+            showScreen('screen-result');
+            
+            const scoreEl = document.getElementById('result-score');
+            const statusEl = document.getElementById('result-status');
+            const msgEl = document.getElementById('result-message');
+            
+            let currentDisplay = 0;
+            const targetScore = gameState.score;
+            const duration = 1000;
+            const startTime = Date.now();
+            
+            function updateNumber() {
+                const now = Date.now();
+                const progress = Math.min(1, (now - startTime) / duration);
+                currentDisplay = Math.floor(progress * targetScore);
+                scoreEl.textContent = currentDisplay;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(updateNumber);
+                } else {
+                    finalizeResult();
+                }
+            }
+            requestAnimationFrame(updateNumber);
+
+            function finalizeResult() {
+                const isPass = targetScore >= PASS_SCORE;
+                
+                if (isPass) {
+                    if (targetScore >= EXCELLENT_SCORE) {
+                        statusEl.innerHTML = '<span class="text-yellow-500">🎉 素晴らしい！天才的です！ 🎉</span>';
+                    } else {
+                        statusEl.innerHTML = '<span class="text-green-500">合格！おめでとう！</span>';
+                    }
+                    
+                    updateProgress();
+                } else {
+                    statusEl.innerHTML = '<span class="text-blue-500">残念...不合格</span>';
+                    msgEl.innerHTML = `合格まであと <b>${PASS_SCORE - targetScore}</b> 点！<br>はやく正確に答えるのがコツだよ。`;
+                }
+            }
+        }
+
+        function updateProgress() {
+            const msgEl = document.getElementById('result-message');
+            let isEnding = false;
+
+            if (gameState.mode === 'basic') {
+                if (gameState.stage === appState.progress.basic) {
+                    if (gameState.stage < MAX_BASIC_STAGE) {
+                        appState.progress.basic++;
+                        msgEl.textContent = `次のステージ（${appState.progress.basic}）が解放されました！`;
+                    } else {
+                        if (appState.progress.challenge === 0) {
+                            appState.progress.challenge = 1;
+                            msgEl.innerHTML = `<span class="text-yellow-600 font-bold">チャレンジモードが解放されました！</span>`;
+                        } else {
+                            msgEl.textContent = "基本モード全ステージクリア済み！";
+                        }
+                    }
+                    saveData();
+                } else {
+                     msgEl.textContent = "クリア済みステージです。素晴らしい成績！";
+                }
+            } else if (gameState.mode === 'challenge') {
+                if (gameState.stage === appState.progress.challenge) {
+                    if (gameState.stage < MAX_CHALLENGE_STAGE) {
+                        appState.progress.challenge++;
+                        msgEl.textContent = `次のチャレンジステージが解放されました！`;
+                        saveData();
+                    } else {
+                        isEnding = true;
+                    }
+                } else {
+                    msgEl.textContent = "見事な聴力です！";
+                }
+            }
+
+            if (isEnding) {
+                setTimeout(() => {
+                    document.getElementById('ending-player-name').textContent = appState.playerName;
+                    showScreen('screen-ending');
+                }, 2000); 
+            }
+        }
+    </script>
+</body>
+</html>
