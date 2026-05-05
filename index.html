@@ -116,14 +116,18 @@
 
             <!-- 出題される曲リスト -->
             <div class="w-full max-w-sm z-10 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                <p class="font-bold text-green-700 mb-2 text-sm text-center border-b border-green-100 pb-2"><i class="fa-solid fa-compact-disc mr-1"></i> 出題される曲</p>
-                <ul class="text-xs text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 font-bold">
-                    <li>A. 青少年のための管弦楽入門</li>
-                    <li>B. ボレロ</li>
-                    <li>C. 管弦楽のための協奏曲</li>
-                    <li>D. 展覧会の絵</li>
-                    <li>E. 動物の謝肉祭</li>
-                    <li>F. ピーターと狼</li>
+                <p class="font-bold text-green-700 mb-2 text-sm text-center border-b border-green-100 pb-2"><i class="fa-solid fa-compact-disc mr-1"></i> 出題される曲 (テスト10動画)</p>
+                <ul class="text-xs text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 font-bold h-24 overflow-y-auto pr-2 no-scrollbar">
+                    <li>1. 青少年のための管弦楽入門</li>
+                    <li>2. ボレロ</li>
+                    <li>3. 管弦楽のための協奏曲</li>
+                    <li>4. 展覧会の絵</li>
+                    <li>5. 動物の謝肉祭</li>
+                    <li>6. ピーターと狼</li>
+                    <li>7. 青少年… (別演)</li>
+                    <li>8. ボレロ (別演)</li>
+                    <li>9. 管弦楽… (別演)</li>
+                    <li>10. 動物の謝肉祭 (別演)</li>
                 </ul>
             </div>
         </div>
@@ -137,7 +141,7 @@
             <div class="w-full max-w-sm bg-gray-200 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
                 <div id="preload-progress" class="bg-green-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
-            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 6 完了</p>
+            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 10 完了</p>
             
             <button onclick="finishPreload()" class="mt-12 text-gray-400 underline text-sm hover:text-gray-600">スキップして進む</button>
         </div>
@@ -255,7 +259,7 @@
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
         // ==========================================
-        // 0. 効果音 (Web Audio API)
+        // 0. 効果音 (Web Audio API) & 音声合成
         // ==========================================
         let audioCtx = null;
 
@@ -266,6 +270,10 @@
             }
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
+            }
+            
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.getVoices();
             }
         }
 
@@ -314,10 +322,19 @@
             }
         }
 
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ja-JP';
+                utterance.rate = 1.0; 
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
         // ==========================================
         // 1. データ定義
         // ==========================================
-        // 15種類の楽器リスト
         const INSTRUMENTS = [
             { id: 1, name: "フルート" },
             { id: 2, name: "ピッコロ" },
@@ -336,63 +353,32 @@
             { id: 15, name: "コントラバス" }
         ];
 
-        // 各動画（曲）と、何秒目にどの楽器(ID)が鳴るかのデータ
-        // ※プロトタイプ用として、同じ動画IDを使い回していますが、実際の運用時はそれぞれ固有のYouTube動画IDに変更してください。
+        // 広告がつきやすい一般的なクラシックの実在YouTube動画を10種類設定します。
+        const VIDEO_1 = "9u6khV7PULo"; // 青少年のための管弦楽入門
+        const VIDEO_2 = "baS3Pav2-sM"; // ボレロ
+        const VIDEO_3 = "unVrVyJln6g"; // 管弦楽のための協奏曲
+        const VIDEO_4 = "AWhtACNkCU0"; // 展覧会の絵
+        const VIDEO_5 = "ILqoFHaZK3U"; // 動物の謝肉祭
+        const VIDEO_6 = "ZOcpOQJdQL0"; // ピーターと狼
+        const VIDEO_7 = "3vGcU4jBRaQ"; // 青少年のための管弦楽入門 (別演奏)
+        const VIDEO_8 = "3hogM5Hqypo"; // ボレロ (別演奏)
+        const VIDEO_9 = "1MOmVclkiDI"; // 管弦楽のための協奏曲 (別演奏)
+        const VIDEO_10 = "ds7R9Owwno0"; // 動物の謝肉祭 (別演奏)
+
         const QUIZ_DATA = {
-            "A": {
-                title: "青少年のための管弦楽入門",
-                videoId: "K4DyBUG242c", 
-                cues: [
-                    { start: 10, instId: 1 },  // Aの動画の10秒目は フルート(1)
-                    { start: 20, instId: 5 }   // Aの動画の20秒目は クラリネット(5)
-                ]
-            },
-            "B": {
-                title: "ボレロ",
-                videoId: "M7lc1UVf-VE", 
-                cues: [
-                    { start: 15, instId: 8 },  // Bの動画の15秒目は ホルン(8)
-                    { start: 30, instId: 4 }   // Bの動画の30秒目は ファゴット(4)
-                ]
-            },
-            "C": {
-                title: "管弦楽のための協奏曲",
-                videoId: "aqz-KE-bpKQ", 
-                cues: [
-                    { start: 10, instId: 7 },
-                    { start: 25, instId: 11 }
-                ]
-            },
-            "D": {
-                title: "展覧会の絵",
-                videoId: "K4DyBUG242c", // Aと被せています
-                cues: [
-                    { start: 40, instId: 6 },
-                    { start: 55, instId: 2 }
-                ]
-            },
-            "E": {
-                title: "動物の謝肉祭",
-                videoId: "M7lc1UVf-VE", // Bと被せています
-                cues: [
-                    { start: 45, instId: 14 },
-                    { start: 60, instId: 15 }
-                ]
-            },
-            "F": {
-                title: "ピーターと狼",
-                videoId: "aqz-KE-bpKQ", // Cと被せています
-                cues: [
-                    { start: 40, instId: 3 },
-                    { start: 55, instId: 12 }
-                ]
-            }
+            "Q1": { title: "青少年のための管弦楽入門", videoId: VIDEO_1, cues: [{ start: 60, instId: 1 }] },
+            "Q2": { title: "ボレロ", videoId: VIDEO_2, cues: [{ start: 60, instId: 2 }] },
+            "Q3": { title: "管弦楽のための協奏曲", videoId: VIDEO_3, cues: [{ start: 60, instId: 3 }] },
+            "Q4": { title: "展覧会の絵", videoId: VIDEO_4, cues: [{ start: 60, instId: 4 }] },
+            "Q5": { title: "動物の謝肉祭", videoId: VIDEO_5, cues: [{ start: 60, instId: 5 }] },
+            "Q6": { title: "ピーターと狼", videoId: VIDEO_6, cues: [{ start: 60, instId: 6 }] },
+            "Q7": { title: "青少年のための管弦楽入門 (別演奏)", videoId: VIDEO_7, cues: [{ start: 60, instId: 7 }] },
+            "Q8": { title: "ボレロ (別演奏)", videoId: VIDEO_8, cues: [{ start: 60, instId: 8 }] },
+            "Q9": { title: "管弦楽のための協奏曲 (別演奏)", videoId: VIDEO_9, cues: [{ start: 60, instId: 9 }] },
+            "Q10": { title: "動物の謝肉祭 (別演奏)", videoId: VIDEO_10, cues: [{ start: 60, instId: 10 }] }
         };
 
         // --- プロトタイプ動作保証のための自動補完 ---
-        // 上記の手動設定だけでは、全15種類の楽器に対して問題数が足りずゲームが進行しなくなる可能性があるため、
-        // 不足しているデータをプログラムで全動画に自動的に散りばめます。
-        // （実際にご自身で全楽器分の秒数を設定した後は、この自動補完ブロックは削除しても構いません）
         Object.keys(QUIZ_DATA).forEach(key => {
             let t = 80;
             INSTRUMENTS.forEach(inst => {
@@ -402,7 +388,6 @@
         });
         // ------------------------------------------
 
-        // 動画IDの重複を排除したリスト（プレイヤー生成用）
         const uniqueVideoIds = [...new Set(Object.values(QUIZ_DATA).map(v => v.videoId))];
 
         const PASS_SCORE = 8000;
@@ -427,7 +412,8 @@
             timerId: null,
             startTimeMs: 0,
             isWaitingForPlay: false,
-            currentVideoId: "" 
+            currentVideoId: "",
+            fixedOptions: []
         };
 
         let players = {};
@@ -459,7 +445,6 @@
             };
 
             const ytWrapper = document.getElementById('yt-wrapper');
-            // オーバーレイ以外の要素をクリア
             Array.from(ytWrapper.children).forEach(child => {
                 if(child.id !== 'yt-video-title') ytWrapper.removeChild(child);
             });
@@ -678,7 +663,6 @@
             basicContainer.innerHTML = '';
             for (let i = 1; i <= MAX_BASIC_STAGE; i++) {
                 const isUnlocked = i <= appState.progress.basic;
-                // ステージごとに3つの楽器（15種類なので5ステージでぴったり網羅）
                 const startIndex = (i - 1) * 3;
                 const instrumentsText = INSTRUMENTS.slice(startIndex, startIndex + 3).map(inst => inst.name).join(' / ');
                 
@@ -742,7 +726,8 @@
                 availableInstruments = shuffled.slice(0, count);
             }
 
-            // 出題可能な全キュー（動画×秒数）をリストアップ
+            gameState.fixedOptions = [...availableInstruments].sort(() => 0.5 - Math.random());
+
             let allAvailableCues = [];
             Object.keys(QUIZ_DATA).forEach(videoKey => {
                 const videoData = QUIZ_DATA[videoKey];
@@ -760,12 +745,10 @@
                 });
             });
 
-            // 10問抽出
             let lastInstId = -1;
             for (let i = 0; i < 10; i++) {
-                // 同じ楽器が連続しないように候補を絞る（種類が2以上の時のみ）
                 let candidates = allAvailableCues.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
-                if (candidates.length === 0) candidates = allAvailableCues; // 候補がなければ妥協
+                if (candidates.length === 0) candidates = allAvailableCues; 
                 
                 const selectedCue = candidates[Math.floor(Math.random() * candidates.length)];
                 lastInstId = selectedCue.correctInst.id;
@@ -774,8 +757,7 @@
                     correctInst: selectedCue.correctInst,
                     videoId: selectedCue.videoId,
                     videoTitle: selectedCue.videoTitle,
-                    start: selectedCue.start,
-                    options: availableInstruments 
+                    start: selectedCue.start
                 });
             }
 
@@ -793,26 +775,22 @@
             const q = gameState.questions[gameState.currentIndex];
             gameState.currentVideoId = q.videoId;
             
-            // UIリセット
             document.getElementById('question-number').textContent = gameState.currentIndex + 1;
             document.getElementById('timer-bar').style.width = '100%';
             document.getElementById('loading-overlay').classList.remove('hidden');
             document.getElementById('game-ui').classList.add('hidden');
             document.getElementById('yt-wrapper').classList.remove('show');
             document.getElementById('feedback-overlay').classList.remove('show');
-            document.getElementById('yt-video-title').classList.add('hidden'); // タイトルは最初は隠す
+            document.getElementById('yt-video-title').classList.add('hidden'); 
 
-            // 曲名をセット
             document.getElementById('yt-video-title').textContent = `♪ ${q.videoTitle}`;
 
-            // 選択肢ボタン生成
             const optionsContainer = document.getElementById('options-container');
             optionsContainer.innerHTML = '';
             
-            const shuffledOptions = [...q.options].sort(() => 0.5 - Math.random());
-            shuffledOptions.forEach(opt => {
+            gameState.fixedOptions.forEach(opt => {
                 const btn = document.createElement('button');
-                const btnClass = q.options.length > 6 
+                const btnClass = gameState.fixedOptions.length > 6 
                     ? "bg-white border-2 border-gray-200 hover:border-green-500 text-gray-700 font-bold py-2 px-3 rounded-lg shadow-sm transition text-sm flex-grow"
                     : "bg-white border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 text-gray-700 font-bold py-3 px-6 rounded-xl shadow-sm transition w-[45%] text-center";
                 
@@ -825,7 +803,6 @@
                 optionsContainer.appendChild(btn);
             });
 
-            // 対象動画のみ表示
             uniqueVideoIds.forEach(vid => {
                 const el = document.getElementById('player-container-' + vid);
                 if (el) el.style.display = (vid === gameState.currentVideoId) ? 'block' : 'none';
@@ -893,9 +870,10 @@
                     updateScoreDisplay();
                 }
                 showFeedback(isCorrect, selectedId === null);
+                
+                speakText(q.correctInst.name);
             }
 
-            // 動画と曲名を表示
             document.getElementById('yt-wrapper').classList.add('show');
             document.getElementById('yt-video-title').classList.remove('hidden');
             
