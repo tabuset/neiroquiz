@@ -374,7 +374,8 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 csvText = SAMPLE_CSV;
             }
 
-            const lines = csvText.split('\n');
+            // CSVの改行コードのブレ（\r\nなど）を吸収
+            const lines = csvText.replace(/\r/g, '').split('\n');
             const data = {};
             // 1行目はヘッダーとみなして飛ばす (i=1から)
             for (let i = 1; i < lines.length; i++) {
@@ -383,7 +384,6 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 
                 const parts = line.split(',');
                 if (parts.length >= 4) {
-                    // ここで、URLが入力されていても自動的にIDだけを抜き出します
                     const rawVideoId = parts[0].trim();
                     const videoId = extractVideoId(rawVideoId); 
                     
@@ -440,7 +440,11 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
         let players = {};
         let isApiReady = false;
         let readyCount = 0;
-        let fallbackMode = false;
+        
+        // 全体の致命的エラー用フラグ
+        let globalFallback = false;
+        // 個別の動画エラー（埋め込み禁止など）を記録するセット
+        let errorVideos = new Set();
 
         let isPreloading = false;
         let preloadedVideos = new Set();
@@ -578,10 +582,11 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 });
             });
 
+            // 準備が完全に失敗した場合のタイムアウト（API自体のエラー時）
             setTimeout(() => {
                 if (!isApiReady) {
                     console.warn("YouTube APIの準備がタイムアウトしました。");
-                    fallbackMode = true;
+                    globalFallback = true;
                     isApiReady = true;
                     document.getElementById('api-loading-msg').classList.add('hidden');
                     checkStartButtonState();
@@ -616,14 +621,16 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
             }
         }
 
+        // 個別の動画でエラー（埋め込み禁止など）が発生したときの処理
         function onPlayerError(event, vid) {
-            console.warn(`Youtubeer [${vid}] Error: Code ${event.data}. Fallback mode activated.`);
-            fallbackMode = true;
+            console.warn(`Youtubeer [${vid}] Error: Code ${event.data}.`);
+            // エラーになった動画IDを記録しておく（この動画だけスキップする）
+            errorVideos.add(vid);
             
             if (isPreloading && !preloadedVideos.has(vid)) {
                 preloadedVideos.add(vid);
                 updatePreloadUI();
-            } else if (gameState.isWaitingForPlay) {
+            } else if (gameState.isWaitingForPlay && gameState.currentVideoId === vid) {
                 gameState.isWaitingForPlay = false;
                 startQuestionTimer();
             }
@@ -638,7 +645,7 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
             updatePreloadUI();
             showScreen('screen-preload');
 
-            if (fallbackMode) {
+            if (globalFallback) {
                 finishPreload();
                 return;
             }
@@ -866,7 +873,8 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
 
             gameState.isWaitingForPlay = true;
             
-            if (fallbackMode || !players[gameState.currentVideoId]) {
+            // エラーになった動画、またはプレイヤーが存在しない場合はすぐにタイマーを開始する（無音モード）
+            if (globalFallback || errorVideos.has(gameState.currentVideoId) || !players[gameState.currentVideoId]) {
                 setTimeout(() => {
                     if(gameState.isWaitingForPlay) {
                         gameState.isWaitingForPlay = false;
@@ -879,8 +887,15 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                     targetPlayer.unMute();
                     targetPlayer.seekTo(q.start, true);
                     targetPlayer.playVideo();
+                    
+                    // 安全装置: 再生指示を出しても3秒間再生が始まらない場合は強制スタート
+                    setTimeout(() => {
+                        if(gameState.isWaitingForPlay) {
+                            gameState.isWaitingForPlay = false;
+                            startQuestionTimer();
+                        }
+                    }, 3000);
                 } catch(e) {
-                    fallbackMode = true;
                     gameState.isWaitingForPlay = false;
                     startQuestionTimer();
                 }
@@ -937,7 +952,7 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 document.getElementById('yt-wrapper').classList.remove('show');
                 document.getElementById('yt-video-title').classList.add('hidden');
                 
-                if(!fallbackMode && players[gameState.currentVideoId]) {
+                if(!globalFallback && players[gameState.currentVideoId]) {
                     try { players[gameState.currentVideoId].pauseVideo(); } catch(e){}
                 }
                 
