@@ -333,11 +333,10 @@
             { id: 15, name: "コントラバス" }
         ];
 
-        // ★スプレッドシートから発行したCSVのURLをここに貼り付けてください。
-        // （空文字の場合は、下部の SAMPLE_CSV テキストが読み込まれます）
+        // ★スプレッドシートから発行したCSVのURL
         const SPREADSHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRZseO9AokhL3kXCm0ieU7zOcbNel1q56D-ZFqHWLZS-Ws3cI__pOIqCzTbtE-4CFnDPhvryBCHJz4W/pub?gid=249464806&single=true&output=csv"; 
 
-        // サンプル用CSVデータ（スプレッドシートが設定されていない場合の予備）
+        // サンプル用CSVデータ
         const SAMPLE_CSV = `動画ID,曲名,開始秒数,楽器ID
 9u6khV7PULo,青少年のための管弦楽入門,60,1
 baS3Pav2-sM,ボレロ,60,2
@@ -352,6 +351,13 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
 
         let QUIZ_DATA = {};
         let uniqueVideoIds = [];
+
+        // YouTube URLから動画ID(11文字)のみを抽出する関数
+        function extractVideoId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : url;
+        }
 
         // CSVから問題データを構築する関数
         async function loadQuizDataFromCSV() {
@@ -374,9 +380,13 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
+                
                 const parts = line.split(',');
                 if (parts.length >= 4) {
-                    const videoId = parts[0].trim();
+                    // ここで、URLが入力されていても自動的にIDだけを抜き出します
+                    const rawVideoId = parts[0].trim();
+                    const videoId = extractVideoId(rawVideoId); 
+                    
                     const title = parts[1].trim();
                     const start = parseInt(parts[2].trim(), 10);
                     const instId = parseInt(parts[3].trim(), 10);
@@ -389,7 +399,6 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
             }
 
             // --- プロトタイプ動作保証のための自動補完 ---
-            // ※スプレッドシート側で15種類の楽器すべての問題データが用意できたら削除してOKです。
             Object.keys(data).forEach(key => {
                 let t = 80;
                 INSTRUMENTS.forEach(inst => {
