@@ -13,7 +13,7 @@
         
         body {
             font-family: 'M PLUS Rounded 1c', sans-serif;
-            background-color: #f0fdf4; /* 薄い緑系の背景 */
+            background-color: #f0fdf4;
         }
 
         .screen {
@@ -30,7 +30,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* YouTubeプレイヤーのラッパー */
         #yt-wrapper {
             position: absolute;
             top: 50%;
@@ -40,8 +39,8 @@
             max-width: 560px;
             aspect-ratio: 16 / 9;
             z-index: 50;
-            pointer-events: none; /* クリック不可に */
-            opacity: 0; /* 通常は隠す */
+            pointer-events: none; 
+            opacity: 0; 
             transition: opacity 0.2s;
             border: 4px solid #fff;
             border-radius: 12px;
@@ -55,7 +54,6 @@
             pointer-events: auto;
         }
 
-        /* 正誤判定のエフェクト */
         #feedback-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -76,11 +74,10 @@
             transform: scale(1);
         }
 
-        .correct { color: #ef4444; text-shadow: 0 0 20px rgba(255,255,255,0.8); } /* 赤色の丸 */
-        .incorrect { color: #3b82f6; text-shadow: 0 0 20px rgba(255,255,255,0.8); } /* 青色のバツ */
+        .correct { color: #ef4444; text-shadow: 0 0 20px rgba(255,255,255,0.8); } 
+        .incorrect { color: #3b82f6; text-shadow: 0 0 20px rgba(255,255,255,0.8); } 
         .timeup { color: #f59e0b; font-size: 5rem !important; text-shadow: 0 0 20px rgba(255,255,255,0.8); }
 
-        /* スクロールバー非表示 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -111,23 +108,14 @@
                 <button id="btn-start" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
                     ゲームスタート
                 </button>
-                <p id="api-loading-msg" class="text-xs text-center text-gray-400 mt-2">システム準備中...</p>
+                <p id="api-loading-msg" class="text-xs text-center text-gray-400 mt-2">データ準備中...</p>
             </div>
 
             <!-- 出題される曲リスト -->
             <div class="w-full max-w-sm z-10 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                <p class="font-bold text-green-700 mb-2 text-sm text-center border-b border-green-100 pb-2"><i class="fa-solid fa-compact-disc mr-1"></i> 出題される曲 (テスト10動画)</p>
-                <ul class="text-xs text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 font-bold h-24 overflow-y-auto pr-2 no-scrollbar">
-                    <li>1. 青少年のための管弦楽入門</li>
-                    <li>2. ボレロ</li>
-                    <li>3. 管弦楽のための協奏曲</li>
-                    <li>4. 展覧会の絵</li>
-                    <li>5. 動物の謝肉祭</li>
-                    <li>6. ピーターと狼</li>
-                    <li>7. 青少年… (別演)</li>
-                    <li>8. ボレロ (別演)</li>
-                    <li>9. 管弦楽… (別演)</li>
-                    <li>10. 動物の謝肉祭 (別演)</li>
+                <p class="font-bold text-green-700 mb-2 text-sm text-center border-b border-green-100 pb-2"><i class="fa-solid fa-compact-disc mr-1"></i> 出題される曲</p>
+                <ul id="song-list" class="text-xs text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 font-bold h-24 overflow-y-auto pr-2 no-scrollbar">
+                    <!-- JSで動的生成 -->
                 </ul>
             </div>
         </div>
@@ -141,7 +129,7 @@
             <div class="w-full max-w-sm bg-gray-200 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
                 <div id="preload-progress" class="bg-green-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
-            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 10 完了</p>
+            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 0 完了</p>
             
             <button onclick="finishPreload()" class="mt-12 text-gray-400 underline text-sm hover:text-gray-600">スキップして進む</button>
         </div>
@@ -198,7 +186,7 @@
                     <p class="font-bold text-gray-600">音源を準備中...</p>
                 </div>
 
-                <!-- 答え合わせ中の動画表示用ラッパー (複数プレイヤーを格納) -->
+                <!-- 答え合わせ中の動画表示用ラッパー -->
                 <div id="yt-wrapper">
                     <!-- 曲名表示用のオーバーレイ -->
                     <div id="yt-video-title" class="absolute top-3 left-3 bg-black/80 text-white px-3 py-1 rounded text-sm font-bold z-50 hidden border border-white/20 shadow-lg"></div>
@@ -255,8 +243,7 @@
 
     </div>
 
-    <!-- YouTube IFrame API -->
-    <script src="https://www.youtube.com/iframe_api"></script>
+    <!-- YouTube IFrame API はデータ読み込み完了後に動的ロードします -->
     <script>
         // ==========================================
         // 0. 効果音 (Web Audio API) & 音声合成
@@ -333,62 +320,87 @@
         }
 
         // ==========================================
-        // 1. データ定義
+        // 1. データ定義とスプレッドシート連携
         // ==========================================
         const INSTRUMENTS = [
-            { id: 1, name: "フルート" },
-            { id: 2, name: "ピッコロ" },
-            { id: 3, name: "オーボエ" },
-            { id: 4, name: "ファゴット" },
-            { id: 5, name: "クラリネット" },
-            { id: 6, name: "サクソフォン" },
-            { id: 7, name: "トランペット" },
-            { id: 8, name: "ホルン" },
-            { id: 9, name: "トロンボーン" },
-            { id: 10, name: "ユーフォニアム" },
-            { id: 11, name: "チューバ" },
-            { id: 12, name: "ヴァイオリン" },
-            { id: 13, name: "ヴィオラ" },
-            { id: 14, name: "チェロ" },
+            { id: 1, name: "フルート" }, { id: 2, name: "ピッコロ" },
+            { id: 3, name: "オーボエ" }, { id: 4, name: "ファゴット" },
+            { id: 5, name: "クラリネット" }, { id: 6, name: "サクソフォン" },
+            { id: 7, name: "トランペット" }, { id: 8, name: "ホルン" },
+            { id: 9, name: "トロンボーン" }, { id: 10, name: "ユーフォニアム" },
+            { id: 11, name: "チューバ" }, { id: 12, name: "ヴァイオリン" },
+            { id: 13, name: "ヴィオラ" }, { id: 14, name: "チェロ" },
             { id: 15, name: "コントラバス" }
         ];
 
-        // 広告がつきやすい一般的なクラシックの実在YouTube動画を10種類設定します。
-        const VIDEO_1 = "9u6khV7PULo"; // 青少年のための管弦楽入門
-        const VIDEO_2 = "baS3Pav2-sM"; // ボレロ
-        const VIDEO_3 = "unVrVyJln6g"; // 管弦楽のための協奏曲
-        const VIDEO_4 = "AWhtACNkCU0"; // 展覧会の絵
-        const VIDEO_5 = "ILqoFHaZK3U"; // 動物の謝肉祭
-        const VIDEO_6 = "ZOcpOQJdQL0"; // ピーターと狼
-        const VIDEO_7 = "3vGcU4jBRaQ"; // 青少年のための管弦楽入門 (別演奏)
-        const VIDEO_8 = "3hogM5Hqypo"; // ボレロ (別演奏)
-        const VIDEO_9 = "1MOmVclkiDI"; // 管弦楽のための協奏曲 (別演奏)
-        const VIDEO_10 = "ds7R9Owwno0"; // 動物の謝肉祭 (別演奏)
+        // ★スプレッドシートから発行したCSVのURLをここに貼り付けてください。
+        // （空文字の場合は、下部の SAMPLE_CSV テキストが読み込まれます）
+        const SPREADSHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRZseO9AokhL3kXCm0ieU7zOcbNel1q56D-ZFqHWLZS-Ws3cI__pOIqCzTbtE-4CFnDPhvryBCHJz4W/pub?gid=249464806&single=true&output=csv"; 
 
-        const QUIZ_DATA = {
-            "Q1": { title: "青少年のための管弦楽入門", videoId: VIDEO_1, cues: [{ start: 60, instId: 1 }] },
-            "Q2": { title: "ボレロ", videoId: VIDEO_2, cues: [{ start: 60, instId: 2 }] },
-            "Q3": { title: "管弦楽のための協奏曲", videoId: VIDEO_3, cues: [{ start: 60, instId: 3 }] },
-            "Q4": { title: "展覧会の絵", videoId: VIDEO_4, cues: [{ start: 60, instId: 4 }] },
-            "Q5": { title: "動物の謝肉祭", videoId: VIDEO_5, cues: [{ start: 60, instId: 5 }] },
-            "Q6": { title: "ピーターと狼", videoId: VIDEO_6, cues: [{ start: 60, instId: 6 }] },
-            "Q7": { title: "青少年のための管弦楽入門 (別演奏)", videoId: VIDEO_7, cues: [{ start: 60, instId: 7 }] },
-            "Q8": { title: "ボレロ (別演奏)", videoId: VIDEO_8, cues: [{ start: 60, instId: 8 }] },
-            "Q9": { title: "管弦楽のための協奏曲 (別演奏)", videoId: VIDEO_9, cues: [{ start: 60, instId: 9 }] },
-            "Q10": { title: "動物の謝肉祭 (別演奏)", videoId: VIDEO_10, cues: [{ start: 60, instId: 10 }] }
-        };
+        // サンプル用CSVデータ（スプレッドシートが設定されていない場合の予備）
+        const SAMPLE_CSV = `動画ID,曲名,開始秒数,楽器ID
+9u6khV7PULo,青少年のための管弦楽入門,60,1
+baS3Pav2-sM,ボレロ,60,2
+unVrVyJln6g,管弦楽のための協奏曲,60,3
+AWhtACNkCU0,展覧会の絵,60,4
+ILqoFHaZK3U,動物の謝肉祭,60,5
+ZOcpOQJdQL0,ピーターと狼,60,6
+3vGcU4jBRaQ,青少年のための管弦楽入門 (別演奏),60,7
+3hogM5Hqypo,ボレロ (別演奏),60,8
+1MOmVclkiDI,管弦楽のための協奏曲 (別演奏),60,9
+ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
 
-        // --- プロトタイプ動作保証のための自動補完 ---
-        Object.keys(QUIZ_DATA).forEach(key => {
-            let t = 80;
-            INSTRUMENTS.forEach(inst => {
-                QUIZ_DATA[key].cues.push({ start: t, instId: inst.id });
-                t += 5;
+        let QUIZ_DATA = {};
+        let uniqueVideoIds = [];
+
+        // CSVから問題データを構築する関数
+        async function loadQuizDataFromCSV() {
+            let csvText = "";
+            if (SPREADSHEET_CSV_URL) {
+                try {
+                    const response = await fetch(SPREADSHEET_CSV_URL);
+                    csvText = await response.text();
+                } catch (e) {
+                    console.error("CSV fetch error, using fallback.", e);
+                    csvText = SAMPLE_CSV;
+                }
+            } else {
+                csvText = SAMPLE_CSV;
+            }
+
+            const lines = csvText.split('\n');
+            const data = {};
+            // 1行目はヘッダーとみなして飛ばす (i=1から)
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const parts = line.split(',');
+                if (parts.length >= 4) {
+                    const videoId = parts[0].trim();
+                    const title = parts[1].trim();
+                    const start = parseInt(parts[2].trim(), 10);
+                    const instId = parseInt(parts[3].trim(), 10);
+                    
+                    if (!data[videoId]) {
+                        data[videoId] = { title: title, videoId: videoId, cues: [] };
+                    }
+                    data[videoId].cues.push({ start: start, instId: instId });
+                }
+            }
+
+            // --- プロトタイプ動作保証のための自動補完 ---
+            // ※スプレッドシート側で15種類の楽器すべての問題データが用意できたら削除してOKです。
+            Object.keys(data).forEach(key => {
+                let t = 80;
+                INSTRUMENTS.forEach(inst => {
+                    data[key].cues.push({ start: t, instId: inst.id });
+                    t += 5;
+                });
             });
-        });
-        // ------------------------------------------
+            // ------------------------------------------
 
-        const uniqueVideoIds = [...new Set(Object.values(QUIZ_DATA).map(v => v.videoId))];
+            return data;
+        }
 
         const PASS_SCORE = 8000;
         const EXCELLENT_SCORE = 9000;
@@ -426,8 +438,91 @@
         let preloadTimeoutId = null;
 
         // ==========================================
-        // 3. YouTube API と プリロード関連
+        // 3. 初期化とUI構築
         // ==========================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            loadData();
+            
+            const nameInput = document.getElementById('player-name');
+            if(appState.playerName) nameInput.value = appState.playerName;
+            
+            nameInput.addEventListener('input', checkStartButtonState);
+
+            document.getElementById('btn-start').addEventListener('click', () => {
+                initAudio(); 
+                appState.playerName = nameInput.value.trim();
+                saveData();
+                document.getElementById('header-player-name').textContent = appState.playerName;
+                document.getElementById('header-player-name').classList.remove('hidden');
+                
+                startPreload();
+            });
+
+            // 問題データの非同期読み込み開始
+            try {
+                const msgEl = document.getElementById('api-loading-msg');
+                msgEl.textContent = "問題データを読み込み中...";
+                
+                QUIZ_DATA = await loadQuizDataFromCSV();
+                uniqueVideoIds = [...new Set(Object.values(QUIZ_DATA).map(v => v.videoId))];
+                
+                updateSongListUI();
+                
+                msgEl.textContent = "YouTubeシステム準備中...";
+                
+                // データが構築されてからYouTube IFrame APIをロードする
+                const tag = document.createElement('script');
+                tag.src = "https://www.youtube.com/iframe_api";
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+                
+            } catch(e) {
+                console.error(e);
+                document.getElementById('api-loading-msg').textContent = "データの読み込みに失敗しました";
+            }
+        });
+
+        function updateSongListUI() {
+            const listEl = document.getElementById('song-list');
+            listEl.innerHTML = '';
+            // 重複なしで曲名を取得
+            const titles = [...new Set(Object.values(QUIZ_DATA).map(v => v.title))];
+            titles.forEach((title, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}. ${title}`;
+                listEl.appendChild(li);
+            });
+            document.getElementById('preload-status-text').textContent = `0 / ${uniqueVideoIds.length} 完了`;
+        }
+
+        function checkStartButtonState() {
+            const btn = document.getElementById('btn-start');
+            const name = document.getElementById('player-name').value.trim();
+            btn.disabled = !(isApiReady && name.length > 0);
+        }
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('toneQuizSaveData');
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                } catch (e) { console.error("Save data parse error"); }
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('toneQuizSaveData', JSON.stringify(appState));
+        }
+
+        // ==========================================
+        // 4. YouTube API 関連
+        // ==========================================
+        // この関数は iframe_api がロードされた後に自動的に呼ばれます
         function onYouTubeIframeAPIReady() {
             let currentOrigin = window.location.origin;
             if (!currentOrigin || currentOrigin === "null" || currentOrigin.startsWith("file")) {
@@ -490,7 +585,6 @@
             if (readyCount === uniqueVideoIds.length && !isApiReady) {
                 isApiReady = true;
                 document.getElementById('api-loading-msg').classList.add('hidden');
-                document.getElementById('preload-status-text').textContent = `0 / ${uniqueVideoIds.length} 完了`;
                 checkStartButtonState();
             }
         }
@@ -524,53 +618,6 @@
                 gameState.isWaitingForPlay = false;
                 startQuestionTimer();
             }
-        }
-
-        // ==========================================
-        // 4. UI ナビゲーションと初期化
-        // ==========================================
-        document.addEventListener('DOMContentLoaded', () => {
-            loadData();
-            
-            const nameInput = document.getElementById('player-name');
-            if(appState.playerName) nameInput.value = appState.playerName;
-            
-            nameInput.addEventListener('input', checkStartButtonState);
-
-            document.getElementById('btn-start').addEventListener('click', () => {
-                initAudio(); 
-                
-                appState.playerName = nameInput.value.trim();
-                saveData();
-                document.getElementById('header-player-name').textContent = appState.playerName;
-                document.getElementById('header-player-name').classList.remove('hidden');
-                
-                startPreload();
-            });
-        });
-
-        function checkStartButtonState() {
-            const btn = document.getElementById('btn-start');
-            const name = document.getElementById('player-name').value.trim();
-            btn.disabled = !(isApiReady && name.length > 0);
-        }
-
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-        }
-
-        function loadData() {
-            const saved = localStorage.getItem('toneQuizSaveData');
-            if (saved) {
-                try {
-                    appState = JSON.parse(saved);
-                } catch (e) { console.error("Save data parse error"); }
-            }
-        }
-
-        function saveData() {
-            localStorage.setItem('toneQuizSaveData', JSON.stringify(appState));
         }
 
         // ==========================================
