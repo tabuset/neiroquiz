@@ -67,6 +67,7 @@
             pointer-events: none;
             transition: opacity 0.2s, transform 0.2s;
             transform: scale(0.5);
+            text-align: center;
         }
 
         #feedback-overlay.show {
@@ -76,7 +77,7 @@
 
         .correct { color: #ef4444; text-shadow: 0 0 20px rgba(255,255,255,0.8); } 
         .incorrect { color: #3b82f6; text-shadow: 0 0 20px rgba(255,255,255,0.8); } 
-        .timeup { color: #f59e0b; font-size: 5rem !important; text-shadow: 0 0 20px rgba(255,255,255,0.8); }
+        .timeup { color: #f59e0b; font-size: 5rem !important; text-shadow: 0 0 20px rgba(255,255,255,0.8); line-height: 1.2; }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -113,7 +114,7 @@
 
             <!-- 出題される曲リスト -->
             <div class="w-full max-w-sm z-10 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                <p class="font-bold text-green-700 mb-2 text-sm text-center border-b border-green-100 pb-2"><i class="fa-solid fa-compact-disc mr-1"></i> 出題される曲</p>
+                <p class="font-bold text-green-700 mb-2 text-sm text-center border-b border-green-100 pb-2"><i class="fa-solid fa-compact-disc mr-1"></i> 登録されている曲</p>
                 <ul id="song-list" class="text-xs text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 font-bold h-24 overflow-y-auto pr-2 no-scrollbar">
                     <!-- JSで動的生成 -->
                 </ul>
@@ -124,12 +125,12 @@
         <div id="screen-preload" class="screen flex-col items-center justify-center h-full p-6 bg-slate-50 text-center relative overflow-hidden">
             <i class="fa-solid fa-compact-disc fa-spin text-6xl text-green-400 mb-6 drop-shadow-md"></i>
             <h2 class="text-2xl font-bold text-gray-700 mb-2">ゲームの準備中...</h2>
-            <p class="text-gray-500 mb-8 text-sm">動画の読み込みと広告の処理を行っています。<br>しばらくお待ちください。</p>
+            <p class="text-gray-500 mb-8 text-sm">出題される10問の動画を準備しています。<br>しばらくお待ちください。</p>
             
             <div class="w-full max-w-sm bg-gray-200 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
                 <div id="preload-progress" class="bg-green-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
-            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 0 完了</p>
+            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 10 完了</p>
             
             <button onclick="finishPreload()" class="mt-12 text-gray-400 underline text-sm hover:text-gray-600">スキップして進む</button>
         </div>
@@ -243,7 +244,6 @@
 
     </div>
 
-    <!-- YouTube IFrame API はデータ読み込み完了後に動的ロードします -->
     <script>
         // ==========================================
         // 0. 効果音 (Web Audio API) & 音声合成
@@ -322,15 +322,28 @@
         // ==========================================
         // 1. データ定義とスプレッドシート連携
         // ==========================================
+        // 最新の楽器リスト（全20種類）
         const INSTRUMENTS = [
-            { id: 1, name: "フルート" }, { id: 2, name: "ピッコロ" },
-            { id: 3, name: "オーボエ" }, { id: 4, name: "ファゴット" },
-            { id: 5, name: "クラリネット" }, { id: 6, name: "サクソフォン" },
-            { id: 7, name: "トランペット" }, { id: 8, name: "ホルン" },
-            { id: 9, name: "トロンボーン" }, { id: 10, name: "ユーフォニアム" },
-            { id: 11, name: "チューバ" }, { id: 12, name: "ヴァイオリン" },
-            { id: 13, name: "ヴィオラ" }, { id: 14, name: "チェロ" },
-            { id: 15, name: "コントラバス" }
+            { id: 1, name: "フルート" },
+            { id: 2, name: "クラリネット" },
+            { id: 3, name: "オーボエ" },
+            { id: 4, name: "ファゴット" },
+            { id: 5, name: "トランペット" },
+            { id: 6, name: "ホルン" },
+            { id: 7, name: "トロンボーン" },
+            { id: 8, name: "チューバ" },
+            { id: 9, name: "ピッコロ" },
+            { id: 10, name: "アルトサックス" },
+            { id: 11, name: "テナーサックス" },
+            { id: 12, name: "ユーフォニアム" },
+            { id: 13, name: "イングリッシュホルン" },
+            { id: 14, name: "ヴァイオリン" },
+            { id: 15, name: "ヴィオラ" },
+            { id: 16, name: "チェロ" },
+            { id: 17, name: "コントラバス" },
+            { id: 18, name: "ハープ" },
+            { id: 19, name: "ピッコロトランペット" },
+            { id: 20, name: "Esクラリネット" }
         ];
 
         // ★スプレッドシートから発行したCSVのURL
@@ -343,14 +356,9 @@ baS3Pav2-sM,ボレロ,60,2
 unVrVyJln6g,管弦楽のための協奏曲,60,3
 AWhtACNkCU0,展覧会の絵,60,4
 ILqoFHaZK3U,動物の謝肉祭,60,5
-ZOcpOQJdQL0,ピーターと狼,60,6
-3vGcU4jBRaQ,青少年のための管弦楽入門 (別演奏),60,7
-3hogM5Hqypo,ボレロ (別演奏),60,8
-1MOmVclkiDI,管弦楽のための協奏曲 (別演奏),60,9
-ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
+ZOcpOQJdQL0,ピーターと狼,60,6`;
 
         let QUIZ_DATA = {};
-        let uniqueVideoIds = [];
 
         // YouTube URLから動画ID(11文字)のみを抽出する関数
         function extractVideoId(url) {
@@ -403,7 +411,7 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 let t = 80;
                 INSTRUMENTS.forEach(inst => {
                     data[key].cues.push({ start: t, instId: inst.id });
-                    t += 5;
+                    t += 5; // 5秒刻みで全楽器を適当な秒数に配置
                 });
             });
             // ------------------------------------------
@@ -413,7 +421,7 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
 
         const PASS_SCORE = 8000;
         const EXCELLENT_SCORE = 9000;
-        const MAX_BASIC_STAGE = 5;
+        const MAX_BASIC_STAGE = 7; 
         const MAX_CHALLENGE_STAGE = 12;
 
         // ==========================================
@@ -427,32 +435,34 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
         let gameState = {
             mode: "",
             stage: 1,
-            questions: [],
+            questions: [], 
             currentIndex: 0,
             score: 0,
             timerId: null,
             startTimeMs: 0,
             isWaitingForPlay: false,
-            currentVideoId: "",
             fixedOptions: []
         };
 
         let players = {};
         let isApiReady = false;
         let readyCount = 0;
-        
-        // 全体の致命的エラー用フラグ
         let globalFallback = false;
-        // 個別の動画エラー（埋め込み禁止など）を記録するセット
-        let errorVideos = new Set();
-
         let isPreloading = false;
-        let preloadedVideos = new Set();
         let preloadTimeoutId = null;
 
         // ==========================================
         // 3. 初期化とUI構築
         // ==========================================
+        
+        // YouTube API ロード完了時のコールバック関数（グローバルスコープ）
+        window.onYouTubeIframeAPIReady = function() {
+            isApiReady = true;
+            const msgEl = document.getElementById('api-loading-msg');
+            if (msgEl) msgEl.classList.add('hidden');
+            checkStartButtonState();
+        };
+
         document.addEventListener('DOMContentLoaded', async () => {
             loadData();
             
@@ -468,7 +478,7 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 document.getElementById('header-player-name').textContent = appState.playerName;
                 document.getElementById('header-player-name').classList.remove('hidden');
                 
-                startPreload();
+                goToStageSelect();
             });
 
             // 問題データの非同期読み込み開始
@@ -477,11 +487,9 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 msgEl.textContent = "問題データを読み込み中...";
                 
                 QUIZ_DATA = await loadQuizDataFromCSV();
-                uniqueVideoIds = [...new Set(Object.values(QUIZ_DATA).map(v => v.videoId))];
-                
                 updateSongListUI();
                 
-                msgEl.textContent = "YouTubeシステム準備中...";
+                msgEl.textContent = "YouTubeシステム準備完了！";
                 
                 // データが構築されてからYouTube IFrame APIをロードする
                 const tag = document.createElement('script');
@@ -489,6 +497,17 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 const firstScriptTag = document.getElementsByTagName('script')[0];
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
                 
+                // APIを使用しない場合のフェールセーフ（5秒待ってもAPIが反応しない場合）
+                setTimeout(() => {
+                    if (!isApiReady) {
+                        console.warn("YouTube APIの準備がタイムアウトしました。");
+                        isApiReady = true;
+                        globalFallback = true;
+                        msgEl.classList.add('hidden');
+                        checkStartButtonState();
+                    }
+                }, 5000);
+
             } catch(e) {
                 console.error(e);
                 document.getElementById('api-loading-msg').textContent = "データの読み込みに失敗しました";
@@ -498,14 +517,12 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
         function updateSongListUI() {
             const listEl = document.getElementById('song-list');
             listEl.innerHTML = '';
-            // 重複なしで曲名を取得
             const titles = [...new Set(Object.values(QUIZ_DATA).map(v => v.title))];
             titles.forEach((title, index) => {
                 const li = document.createElement('li');
                 li.textContent = `${index + 1}. ${title}`;
                 listEl.appendChild(li);
             });
-            document.getElementById('preload-status-text').textContent = `0 / ${uniqueVideoIds.length} 完了`;
         }
 
         function checkStartButtonState() {
@@ -530,163 +547,6 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
 
         function saveData() {
             localStorage.setItem('toneQuizSaveData', JSON.stringify(appState));
-        }
-
-        // ==========================================
-        // 4. YouTube API 関連
-        // ==========================================
-        // この関数は iframe_api がロードされた後に自動的に呼ばれます
-        function onYouTubeIframeAPIReady() {
-            let currentOrigin = window.location.origin;
-            if (!currentOrigin || currentOrigin === "null" || currentOrigin.startsWith("file")) {
-                currentOrigin = "http://localhost:8080"; 
-            }
-
-            const playerVars = {
-                'playsinline': 1,
-                'controls': 0,
-                'disablekb': 1,
-                'fs': 0,
-                'rel': 0,
-                'modestbranding': 1,
-                'origin': currentOrigin
-            };
-
-            const ytWrapper = document.getElementById('yt-wrapper');
-            Array.from(ytWrapper.children).forEach(child => {
-                if(child.id !== 'yt-video-title') ytWrapper.removeChild(child);
-            });
-
-            uniqueVideoIds.forEach(vid => {
-                const div = document.createElement('div');
-                div.id = 'player-container-' + vid;
-                div.style.display = 'none';
-                div.style.width = '100%';
-                div.style.height = '100%';
-                
-                const playerDiv = document.createElement('div');
-                playerDiv.id = 'player-' + vid;
-                div.appendChild(playerDiv);
-                ytWrapper.appendChild(div);
-
-                players[vid] = new YT.Player('player-' + vid, {
-                    height: '100%',
-                    width: '100%',
-                    videoId: vid,
-                    playerVars: playerVars,
-                    events: {
-                        'onReady': onPlayerReady,
-                        'onStateChange': (e) => onPlayerStateChange(e, vid),
-                        'onError': (e) => onPlayerError(e, vid)
-                    }
-                });
-            });
-
-            // 準備が完全に失敗した場合のタイムアウト（API自体のエラー時）
-            setTimeout(() => {
-                if (!isApiReady) {
-                    console.warn("YouTube APIの準備がタイムアウトしました。");
-                    globalFallback = true;
-                    isApiReady = true;
-                    document.getElementById('api-loading-msg').classList.add('hidden');
-                    checkStartButtonState();
-                }
-            }, 5000);
-        }
-
-        function onPlayerReady(event) {
-            readyCount++;
-            if (readyCount === uniqueVideoIds.length && !isApiReady) {
-                isApiReady = true;
-                document.getElementById('api-loading-msg').classList.add('hidden');
-                checkStartButtonState();
-            }
-        }
-
-        function onPlayerStateChange(event, vid) {
-            if (isPreloading) {
-                if (event.data === YT.PlayerState.PLAYING) {
-                    try { players[vid].pauseVideo(); } catch(e){}
-                    if (!preloadedVideos.has(vid)) {
-                        preloadedVideos.add(vid);
-                        updatePreloadUI();
-                    }
-                }
-            } 
-            else if (gameState.isWaitingForPlay && event.data === YT.PlayerState.PLAYING) {
-                if (gameState.currentVideoId === vid) {
-                    gameState.isWaitingForPlay = false;
-                    startQuestionTimer();
-                }
-            }
-        }
-
-        // 個別の動画でエラー（埋め込み禁止など）が発生したときの処理
-        function onPlayerError(event, vid) {
-            console.warn(`Youtubeer [${vid}] Error: Code ${event.data}.`);
-            // エラーになった動画IDを記録しておく（この動画だけスキップする）
-            errorVideos.add(vid);
-            
-            if (isPreloading && !preloadedVideos.has(vid)) {
-                preloadedVideos.add(vid);
-                updatePreloadUI();
-            } else if (gameState.isWaitingForPlay && gameState.currentVideoId === vid) {
-                gameState.isWaitingForPlay = false;
-                startQuestionTimer();
-            }
-        }
-
-        // ==========================================
-        // 5. プリロード（広告消化）画面の制御
-        // ==========================================
-        function startPreload() {
-            isPreloading = true;
-            preloadedVideos.clear();
-            updatePreloadUI();
-            showScreen('screen-preload');
-
-            if (globalFallback) {
-                finishPreload();
-                return;
-            }
-
-            uniqueVideoIds.forEach(vid => {
-                try {
-                    players[vid].mute();
-                    players[vid].playVideo();
-                } catch(e) {
-                    preloadedVideos.add(vid);
-                    updatePreloadUI();
-                }
-            });
-
-            preloadTimeoutId = setTimeout(() => {
-                if (isPreloading) {
-                    uniqueVideoIds.forEach(vid => {
-                        try { players[vid].pauseVideo(); } catch(e){}
-                    });
-                    finishPreload();
-                }
-            }, 15000);
-        }
-
-        function updatePreloadUI() {
-            const total = uniqueVideoIds.length;
-            const current = preloadedVideos.size;
-            const percentage = Math.floor((current / total) * 100);
-            
-            document.getElementById('preload-progress').style.width = percentage + '%';
-            document.getElementById('preload-status-text').textContent = `${current} / ${total} 完了`;
-            
-            if (current >= total && isPreloading) {
-                clearTimeout(preloadTimeoutId);
-                setTimeout(finishPreload, 600);
-            }
-        }
-
-        function finishPreload() {
-            isPreloading = false;
-            goToStageSelect();
         }
 
         // ==========================================
@@ -727,7 +587,10 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
             for (let i = 1; i <= MAX_BASIC_STAGE; i++) {
                 const isUnlocked = i <= appState.progress.basic;
                 const startIndex = (i - 1) * 3;
-                const instrumentsText = INSTRUMENTS.slice(startIndex, startIndex + 3).map(inst => inst.name).join(' / ');
+                const stageInstruments = INSTRUMENTS.slice(startIndex, startIndex + 3);
+                if (stageInstruments.length === 0) break;
+                
+                const instrumentsText = stageInstruments.map(inst => inst.name).join(' / ');
                 
                 const btn = document.createElement('button');
                 btn.className = `w-full text-left p-4 rounded-xl shadow-sm border-2 transition flex items-center justify-between ${
@@ -798,7 +661,6 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                     const inst = availableInstruments.find(i => i.id === cue.instId);
                     if (inst) {
                         allAvailableCues.push({
-                            videoKey: videoKey,
                             videoId: videoData.videoId,
                             videoTitle: videoData.title,
                             start: cue.start,
@@ -817,14 +679,134 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 lastInstId = selectedCue.correctInst.id;
                 
                 gameState.questions.push({
+                    index: i,
                     correctInst: selectedCue.correctInst,
                     videoId: selectedCue.videoId,
                     videoTitle: selectedCue.videoTitle,
-                    start: selectedCue.start
+                    start: selectedCue.start,
+                    hasError: false,
+                    isReady: false
                 });
             }
 
             updateScoreDisplay();
+            startPreloadForStage();
+        }
+
+        function startPreloadForStage() {
+            isPreloading = true;
+            showScreen('screen-preload');
+            document.getElementById('preload-status-text').textContent = `0 / 10 完了`;
+            document.getElementById('preload-progress').style.width = '0%';
+            
+            const ytWrapper = document.getElementById('yt-wrapper');
+            Array.from(ytWrapper.children).forEach(child => {
+                if(child.id !== 'yt-video-title') ytWrapper.removeChild(child);
+            });
+            
+            players = {};
+            let currentOrigin = window.location.origin;
+            if (!currentOrigin || currentOrigin === "null" || currentOrigin.startsWith("file")) {
+                currentOrigin = "http://localhost:8080"; 
+            }
+
+            if(typeof YT === 'undefined' || !YT.Player) {
+                 globalFallback = true;
+            }
+
+            if (globalFallback) {
+                setTimeout(() => {
+                    gameState.questions.forEach(q => { q.isReady = true; });
+                    finishPreload();
+                }, 500);
+                return;
+            }
+
+            gameState.questions.forEach((q, i) => {
+                const div = document.createElement('div');
+                div.id = 'player-container-' + i;
+                div.style.display = 'none';
+                div.style.width = '100%';
+                div.style.height = '100%';
+                
+                const playerDiv = document.createElement('div');
+                playerDiv.id = 'player-' + i;
+                div.appendChild(playerDiv);
+                ytWrapper.appendChild(div);
+
+                players[i] = new YT.Player('player-' + i, {
+                    height: '100%',
+                    width: '100%',
+                    videoId: q.videoId,
+                    playerVars: {
+                        'playsinline': 1,
+                        'controls': 0,
+                        'disablekb': 1,
+                        'fs': 0,
+                        'rel': 0,
+                        'modestbranding': 1,
+                        'origin': currentOrigin,
+                        'start': q.start 
+                    },
+                    events: {
+                        'onReady': (e) => {
+                            e.target.mute();
+                            e.target.playVideo();
+                        },
+                        'onStateChange': (e) => {
+                            if (isPreloading && e.data === YT.PlayerState.PLAYING) {
+                                e.target.pauseVideo();
+                                e.target.seekTo(q.start, true); 
+                                if (!q.isReady) {
+                                    q.isReady = true;
+                                    checkPreloadProgress();
+                                }
+                            } 
+                            else if (!isPreloading && gameState.isWaitingForPlay && e.data === YT.PlayerState.PLAYING && gameState.currentIndex === i) {
+                                gameState.isWaitingForPlay = false;
+                                startQuestionTimer();
+                            }
+                        },
+                        'onError': (e) => {
+                            console.warn(`Player Question ${i} Error: ${e.data}`);
+                            q.hasError = true; 
+                            if (!q.isReady) {
+                                q.isReady = true;
+                                checkPreloadProgress();
+                            }
+                        }
+                    }
+                });
+            });
+
+            preloadTimeoutId = setTimeout(() => {
+                if (isPreloading) {
+                    gameState.questions.forEach(q => { q.isReady = true; });
+                    finishPreload();
+                }
+            }, 15000);
+        }
+
+        function checkPreloadProgress() {
+            if (!isPreloading) return;
+            const total = gameState.questions.length;
+            const readyCount = gameState.questions.filter(q => q.isReady).length;
+            const percentage = Math.floor((readyCount / total) * 100);
+            
+            document.getElementById('preload-progress').style.width = percentage + '%';
+            document.getElementById('preload-status-text').textContent = `${readyCount} / ${total} 完了`;
+            
+            if (readyCount >= total) {
+                clearTimeout(preloadTimeoutId);
+                setTimeout(finishPreload, 600); 
+            }
+        }
+
+        function finishPreload() {
+            isPreloading = false;
+            Object.values(players).forEach(p => {
+                try { p.pauseVideo(); } catch(e){}
+            });
             showScreen('screen-game');
             playNextQuestion();
         }
@@ -836,7 +818,6 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
             }
 
             const q = gameState.questions[gameState.currentIndex];
-            gameState.currentVideoId = q.videoId;
             
             document.getElementById('question-number').textContent = gameState.currentIndex + 1;
             document.getElementById('timer-bar').style.width = '100%';
@@ -866,39 +847,38 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 optionsContainer.appendChild(btn);
             });
 
-            uniqueVideoIds.forEach(vid => {
-                const el = document.getElementById('player-container-' + vid);
-                if (el) el.style.display = (vid === gameState.currentVideoId) ? 'block' : 'none';
+            if (q.hasError || !players[gameState.currentIndex]) {
+                document.getElementById('loading-overlay').classList.add('hidden');
+                document.getElementById('game-ui').classList.remove('hidden');
+                
+                setTimeout(() => {
+                    handleAnswer(null, true); 
+                }, 500);
+                return;
+            }
+
+            Array.from(document.getElementById('yt-wrapper').children).forEach(child => {
+                if (child.id.startsWith('player-container-')) {
+                    child.style.display = (child.id === 'player-container-' + gameState.currentIndex) ? 'block' : 'none';
+                }
             });
 
             gameState.isWaitingForPlay = true;
             
-            // エラーになった動画、またはプレイヤーが存在しない場合はすぐにタイマーを開始する（無音モード）
-            if (globalFallback || errorVideos.has(gameState.currentVideoId) || !players[gameState.currentVideoId]) {
+            try {
+                const targetPlayer = players[gameState.currentIndex];
+                targetPlayer.unMute();
+                targetPlayer.playVideo();
+                
                 setTimeout(() => {
                     if(gameState.isWaitingForPlay) {
                         gameState.isWaitingForPlay = false;
                         startQuestionTimer();
                     }
-                }, 500);
-            } else {
-                try {
-                    const targetPlayer = players[gameState.currentVideoId];
-                    targetPlayer.unMute();
-                    targetPlayer.seekTo(q.start, true);
-                    targetPlayer.playVideo();
-                    
-                    // 安全装置: 再生指示を出しても3秒間再生が始まらない場合は強制スタート
-                    setTimeout(() => {
-                        if(gameState.isWaitingForPlay) {
-                            gameState.isWaitingForPlay = false;
-                            startQuestionTimer();
-                        }
-                    }, 3000);
-                } catch(e) {
-                    gameState.isWaitingForPlay = false;
-                    startQuestionTimer();
-                }
+                }, 3000);
+            } catch(e) {
+                gameState.isWaitingForPlay = false;
+                startQuestionTimer();
             }
         }
 
@@ -933,15 +913,16 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
             const buttons = document.getElementById('options-container').querySelectorAll('button');
             buttons.forEach(btn => btn.disabled = true);
 
-            if (!isErrorSkip) {
+            if (isErrorSkip) {
+                showFeedback(false, false, true);
+            } else {
                 if (isCorrect) {
                     const remaining = Math.max(0, 10 - elapsed);
                     const earned = Math.floor(remaining * 100);
                     gameState.score += earned;
                     updateScoreDisplay();
                 }
-                showFeedback(isCorrect, selectedId === null);
-                
+                showFeedback(isCorrect, selectedId === null, false);
                 speakText(q.correctInst.name);
             }
 
@@ -952,23 +933,27 @@ ds7R9Owwno0,動物の謝肉祭 (別演奏),60,10`;
                 document.getElementById('yt-wrapper').classList.remove('show');
                 document.getElementById('yt-video-title').classList.add('hidden');
                 
-                if(!globalFallback && players[gameState.currentVideoId]) {
-                    try { players[gameState.currentVideoId].pauseVideo(); } catch(e){}
+                if(players[gameState.currentIndex]) {
+                    try { players[gameState.currentIndex].pauseVideo(); } catch(e){}
                 }
                 
                 gameState.currentIndex++;
                 playNextQuestion();
-            }, 1000);
+            }, 1200); 
         }
 
-        function showFeedback(isCorrect, isTimeUp) {
+        function showFeedback(isCorrect, isTimeUp, isErrorSkip) {
             const overlay = document.getElementById('feedback-overlay');
             const textEl = document.getElementById('feedback-text');
             
             overlay.className = 'show';
             textEl.className = '';
 
-            if (isTimeUp) {
+            if (isErrorSkip) {
+                textEl.innerHTML = '<span class="text-4xl text-gray-500">再生エラー<br>スキップ</span>';
+                textEl.classList.add('timeup'); 
+                playSound('incorrect'); 
+            } else if (isTimeUp) {
                 textEl.textContent = 'TIME UP';
                 textEl.classList.add('timeup');
                 playSound('timeup');
