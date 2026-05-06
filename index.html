@@ -327,7 +327,7 @@
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'ja-JP';
                 utterance.rate = 1.0; 
-                utterance.volume = 0.5; // ★ 音量を50%に設定
+                utterance.volume = 0.5; // 音量を50%に設定
                 window.speechSynthesis.speak(utterance);
             }
         }
@@ -361,7 +361,7 @@
         // ★スプレッドシートから発行したCSVのURL
         const SPREADSHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRZseO9AokhL3kXCm0ieU7zOcbNel1q56D-ZFqHWLZS-Ws3cI__pOIqCzTbtE-4CFnDPhvryBCHJz4W/pub?gid=249464806&single=true&output=csv"; 
 
-        // サンプル用CSVデータ (第5列に音量を追加)
+        // サンプル用CSVデータ
         const SAMPLE_CSV = `動画ID,曲名,開始秒数,楽器ID,音量
 9u6khV7PULo,青少年のための管弦楽入門,60,1,100
 baS3Pav2-sM,ボレロ,60,2,100
@@ -410,7 +410,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
                     const start = parseInt(parts[2].trim(), 10);
                     const instId = parseInt(parts[3].trim(), 10);
                     
-                    // 音量設定（5列目が存在し、0〜100の範囲なら適用。それ以外はデフォルト100）
                     let volume = 100;
                     if (parts.length >= 5) {
                         const parsedVol = parseInt(parts[4].trim(), 10);
@@ -675,7 +674,7 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
                             videoId: videoData.videoId,
                             videoTitle: videoData.title,
                             start: cue.start,
-                            volume: cue.volume, // 音量データを保持
+                            volume: cue.volume, 
                             correctInst: inst,
                             songIndex: videoData.songIndex
                         });
@@ -694,40 +693,97 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
                 });
             }
 
-            let availableCuesPool = [...allAvailableCues].sort(() => 0.5 - Math.random());
-            let lastInstId = -1;
-            const targetCount = 15; 
+            // --- 均等な出題バランスを計算 ---
+            const mainTargetCount = 10; // 本編10問
+            const subTargetCount = 5;   // 予備5問（エラー代替用）
             
-            for (let i = 0; i < targetCount; i++) {
-                let candidates = availableCuesPool.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
-                
-                if (candidates.length === 0) {
-                    if (availableCuesPool.length === 0) {
-                        availableCuesPool = [...allAvailableCues].sort(() => 0.5 - Math.random());
-                        candidates = availableCuesPool.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
-                        if (candidates.length === 0) candidates = availableCuesPool;
-                    } else {
-                        candidates = availableCuesPool;
-                    }
+            // 指定された合計問題数の中で、各楽器が正解となるべき回数を割り当てる関数
+            function getCounts(targetCount) {
+                const counts = new Map();
+                let remain = targetCount;
+                // ベースとなる割り当て回数（例：10問で3楽器なら各3回）
+                const baseCount = Math.floor(targetCount / availableInstruments.length);
+                availableInstruments.forEach(inst => {
+                    counts.set(inst.id, baseCount);
+                    remain -= baseCount;
+                });
+                // 余った枠（例：10問で3楽器なら1枠余る）をランダムな楽器に割り当て
+                const shuffledInsts = [...availableInstruments].sort(() => 0.5 - Math.random());
+                for (let i = 0; i < remain; i++) {
+                    counts.set(shuffledInsts[i].id, counts.get(shuffledInsts[i].id) + 1);
                 }
+                return counts;
+            }
+
+            const mainCounts = getCounts(mainTargetCount);
+            const subCounts = getCounts(subTargetCount);
+
+            // 割り当てられた回数分だけ、プールから問題を抽出する関数
+            function buildQuestionsList(countsMap) {
+                let list = [];
+                countsMap.forEach((count, instId) => {
+                    let cuesForInst = allAvailableCues.filter(cue => cue.correctInst.id === instId);
+                    if (cuesForInst.length === 0) return; // セーフティ
+                    
+                    let pool = [...cuesForInst].sort(() => 0.5 - Math.random());
+                    for(let i=0; i < count; i++) {
+                        if(pool.length === 0) {
+                            // 問題が足りない場合は、再度シャッフルして使い回す
+                            pool = [...cuesForInst].sort(() => 0.5 - Math.random());
+                        }
+                        list.push(pool.pop());
+                    }
+                });
+                return list;
+            }
+
+            let mainQuestions = buildQuestionsList(mainCounts);
+            let subQuestions = buildQuestionsList(subCounts);
+
+            // 本編10問を、同じ楽器がなるべく連続しないようにシャッフルして並べ替える関数
+            function shuffleWithNoAdjacentDuplicates(array) {
+                let arr = [...array].sort(() => 0.5 - Math.random());
+                const MAX_ATTEMPTS = 50;
                 
-                const selectedCue = candidates[0];
-                availableCuesPool.splice(availableCuesPool.indexOf(selectedCue), 1);
-                
-                lastInstId = selectedCue.correctInst.id;
-                
-                gameState.questions.push({
+                for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+                    let hasDuplicate = false;
+                    for (let i = 0; i < arr.length - 1; i++) {
+                        if (arr[i].correctInst.id === arr[i+1].correctInst.id) {
+                            hasDuplicate = true;
+                            // 別の要素とスワップして連続を解消する
+                            for (let j = 0; j < arr.length; j++) {
+                                if (j !== i && j !== i + 1 && arr[j].correctInst.id !== arr[i].correctInst.id) {
+                                    let temp = arr[i+1];
+                                    arr[i+1] = arr[j];
+                                    arr[j] = temp;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (!hasDuplicate) break;
+                }
+                return arr;
+            }
+
+            mainQuestions = shuffleWithNoAdjacentDuplicates(mainQuestions);
+            subQuestions = subQuestions.sort(() => 0.5 - Math.random()); // 予備は通常のシャッフル
+
+            const finalQuestions = [...mainQuestions, ...subQuestions];
+
+            gameState.questions = finalQuestions.map((q, i) => {
+                return {
                     index: i,
-                    correctInst: selectedCue.correctInst,
-                    videoId: selectedCue.videoId,
-                    videoTitle: selectedCue.videoTitle,
-                    start: selectedCue.start,
-                    volume: selectedCue.volume, // 音量データをセット
-                    songIndex: selectedCue.songIndex,
+                    correctInst: q.correctInst,
+                    videoId: q.videoId,
+                    videoTitle: q.videoTitle,
+                    start: q.start,
+                    volume: q.volume,
+                    songIndex: q.songIndex,
                     hasError: false,
                     isReady: false
-                });
-            }
+                };
+            });
 
             updateScoreDisplay();
             startPreloadForStage();
@@ -906,7 +962,7 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
             try {
                 const targetPlayer = players[gameState.currentIndex];
                 targetPlayer.unMute();
-                targetPlayer.setVolume(q.volume); // ★スプレッドシートで指定した音量を適用
+                targetPlayer.setVolume(q.volume); 
                 targetPlayer.seekTo(q.start, true);
                 targetPlayer.playVideo();
                 
