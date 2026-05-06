@@ -406,15 +406,8 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 }
             }
 
-            // --- プロトタイプ動作保証のための自動補完 ---
-            Object.keys(data).forEach(key => {
-                let t = 80;
-                INSTRUMENTS.forEach(inst => {
-                    data[key].cues.push({ start: t, instId: inst.id });
-                    t += 5; // 5秒刻みで全楽器を適当な秒数に配置
-                });
-            });
-            // ------------------------------------------
+            // ★混乱の原因となっていた「自動補完処理」を削除しました。
+            // 以降はスプレッドシート(CSV)に書かれたデータのみから出題されます。
 
             return data;
         }
@@ -670,6 +663,16 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 });
             });
 
+            // 万が一スプレッドシートに該当ステージの楽器データが1つも無い場合の安全装置
+            if (allAvailableCues.length === 0) {
+                allAvailableCues.push({
+                    videoId: "M7lc1UVf-VE",
+                    videoTitle: "データ未登録",
+                    start: 0,
+                    correctInst: availableInstruments[0]
+                });
+            }
+
             let lastInstId = -1;
             for (let i = 0; i < 10; i++) {
                 let candidates = allAvailableCues.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
@@ -868,6 +871,9 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
             try {
                 const targetPlayer = players[gameState.currentIndex];
                 targetPlayer.unMute();
+                
+                // ★再生の瞬間に改めて指定の秒数へシークさせ、ずれを防ぐ
+                targetPlayer.seekTo(q.start, true);
                 targetPlayer.playVideo();
                 
                 setTimeout(() => {
