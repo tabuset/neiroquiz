@@ -125,12 +125,12 @@
         <div id="screen-preload" class="screen flex-col items-center justify-center h-full p-6 bg-slate-50 text-center relative overflow-hidden">
             <i class="fa-solid fa-compact-disc fa-spin text-6xl text-green-400 mb-6 drop-shadow-md"></i>
             <h2 class="text-2xl font-bold text-gray-700 mb-2">ゲームの準備中...</h2>
-            <p class="text-gray-500 mb-8 text-sm">出題される10問の動画を準備しています。<br>しばらくお待ちください。</p>
+            <p class="text-gray-500 mb-8 text-sm">問題と予備の動画を準備しています。<br>しばらくお待ちください。</p>
             
             <div class="w-full max-w-sm bg-gray-200 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
                 <div id="preload-progress" class="bg-green-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
-            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 10 完了</p>
+            <p id="preload-status-text" class="text-sm font-bold text-green-600">0 / 0 完了</p>
             
             <button onclick="finishPreload()" class="mt-12 text-gray-400 underline text-sm hover:text-gray-600">スキップして進む</button>
         </div>
@@ -215,19 +215,31 @@
         </div>
 
         <!-- 画面4: リザルト -->
-        <div id="screen-result" class="screen flex-col items-center justify-center h-full p-6 bg-slate-50 text-center relative overflow-hidden">
+        <div id="screen-result" class="screen flex-col items-center justify-center h-full p-4 bg-slate-50 text-center relative overflow-y-auto no-scrollbar">
             <div id="confetti" class="absolute inset-0 pointer-events-none hidden"></div>
             
-            <h2 class="text-3xl font-bold text-gray-700 mb-2">結果発表</h2>
-            <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm mb-6 border-t-8 border-green-500">
-                <p class="text-gray-500 mb-2">あなたのスコアは...</p>
-                <div class="text-6xl font-bold text-slate-800 mb-4"><span id="result-score">0</span><span class="text-2xl ml-1 text-gray-400">点</span></div>
+            <h2 class="text-3xl font-bold text-gray-700 mb-2 mt-4">結果発表</h2>
+            <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm mb-4 border-t-8 border-green-500 mx-auto">
+                <p class="text-gray-500 mb-1 text-sm">あなたのスコアは...</p>
+                <div class="text-5xl font-bold text-slate-800 mb-2"><span id="result-score">0</span><span class="text-xl ml-1 text-gray-400">点</span></div>
                 
-                <div id="result-status" class="text-2xl font-bold mb-2"></div>
-                <p id="result-message" class="text-gray-600 text-sm"></p>
+                <div id="result-status" class="text-xl font-bold mb-1"></div>
+                <p id="result-message" class="text-gray-600 text-xs"></p>
+            </div>
+
+            <!-- エラー報告エリア -->
+            <div id="result-error-area" class="w-full max-w-sm bg-red-50 p-3 rounded-xl shadow-sm mb-3 hidden border border-red-200 text-left mx-auto">
+                <p class="text-xs font-bold text-red-600 mb-1"><i class="fa-solid fa-triangle-exclamation"></i> 以下の動画は再生エラーのため代替されました</p>
+                <ul id="result-error-list" class="text-[10px] text-red-700 list-disc list-inside"></ul>
+            </div>
+
+            <!-- 出題された動画リスト -->
+            <div class="w-full max-w-sm bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-left mx-auto">
+                <p class="text-sm font-bold text-green-700 mb-2"><i class="fa-brands fa-youtube text-red-500"></i> 出題に使用した曲（クリックで再生）</p>
+                <ul id="result-played-list" class="text-xs text-gray-600 space-y-2 max-h-32 overflow-y-auto pr-2 no-scrollbar"></ul>
             </div>
             
-            <button onclick="goToStageSelect()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-8 rounded-full transition shadow-md w-full max-w-xs">
+            <button onclick="goToStageSelect()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-8 rounded-full transition shadow-md w-full max-w-xs mx-auto mb-4">
                 ステージ選択に戻る
             </button>
         </div>
@@ -322,7 +334,6 @@
         // ==========================================
         // 1. データ定義とスプレッドシート連携
         // ==========================================
-        // 最新の楽器リスト（全20種類）
         const INSTRUMENTS = [
             { id: 1, name: "フルート" },
             { id: 2, name: "クラリネット" },
@@ -360,14 +371,12 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
 
         let QUIZ_DATA = {};
 
-        // YouTube URLから動画ID(11文字)のみを抽出する関数
         function extractVideoId(url) {
             const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
             const match = url.match(regExp);
             return (match && match[2].length === 11) ? match[2] : url;
         }
 
-        // CSVから問題データを構築する関数
         async function loadQuizDataFromCSV() {
             let csvText = "";
             if (SPREADSHEET_CSV_URL) {
@@ -382,10 +391,11 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 csvText = SAMPLE_CSV;
             }
 
-            // CSVの改行コードのブレ（\r\nなど）を吸収
             const lines = csvText.replace(/\r/g, '').split('\n');
             const data = {};
-            // 1行目はヘッダーとみなして飛ばす (i=1から)
+            
+            let songIndex = 1; // 登録順を記録するための変数
+
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
@@ -400,15 +410,11 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                     const instId = parseInt(parts[3].trim(), 10);
                     
                     if (!data[videoId]) {
-                        data[videoId] = { title: title, videoId: videoId, cues: [] };
+                        data[videoId] = { title: title, videoId: videoId, cues: [], songIndex: songIndex++ };
                     }
                     data[videoId].cues.push({ start: start, instId: instId });
                 }
             }
-
-            // ★混乱の原因となっていた「自動補完処理」を削除しました。
-            // 以降はスプレッドシート(CSV)に書かれたデータのみから出題されます。
-
             return data;
         }
 
@@ -428,7 +434,10 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
         let gameState = {
             mode: "",
             stage: 1,
-            questions: [], 
+            questions: [], // 予備を含めた全ての問題リスト
+            answeredCount: 0, // 出題（完了）した問題数
+            playedQuestions: [], // 実際に出題された問題の記録
+            errorVideosInfo: [], // エラーでスキップされた問題の記録
             currentIndex: 0,
             score: 0,
             timerId: null,
@@ -447,8 +456,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
         // ==========================================
         // 3. 初期化とUI構築
         // ==========================================
-        
-        // YouTube API ロード完了時のコールバック関数（グローバルスコープ）
         window.onYouTubeIframeAPIReady = function() {
             isApiReady = true;
             const msgEl = document.getElementById('api-loading-msg');
@@ -474,7 +481,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 goToStageSelect();
             });
 
-            // 問題データの非同期読み込み開始
             try {
                 const msgEl = document.getElementById('api-loading-msg');
                 msgEl.textContent = "問題データを読み込み中...";
@@ -484,13 +490,11 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 
                 msgEl.textContent = "YouTubeシステム準備完了！";
                 
-                // データが構築されてからYouTube IFrame APIをロードする
                 const tag = document.createElement('script');
                 tag.src = "https://www.youtube.com/iframe_api";
                 const firstScriptTag = document.getElementsByTagName('script')[0];
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
                 
-                // APIを使用しない場合のフェールセーフ（5秒待ってもAPIが反応しない場合）
                 setTimeout(() => {
                     if (!isApiReady) {
                         console.warn("YouTube APIの準備がタイムアウトしました。");
@@ -510,10 +514,12 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
         function updateSongListUI() {
             const listEl = document.getElementById('song-list');
             listEl.innerHTML = '';
-            const titles = [...new Set(Object.values(QUIZ_DATA).map(v => v.title))];
-            titles.forEach((title, index) => {
+            
+            // songIndex順にソートして表示
+            const sortedData = Object.values(QUIZ_DATA).sort((a, b) => a.songIndex - b.songIndex);
+            sortedData.forEach((v) => {
                 const li = document.createElement('li');
-                li.textContent = `${index + 1}. ${title}`;
+                li.textContent = `${v.songIndex}. ${v.title}`;
                 listEl.appendChild(li);
             });
         }
@@ -632,6 +638,9 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
             gameState.stage = stage;
             gameState.currentIndex = 0;
             gameState.score = 0;
+            gameState.answeredCount = 0;
+            gameState.playedQuestions = [];
+            gameState.errorVideosInfo = [];
             gameState.questions = [];
 
             let availableInstruments = [];
@@ -657,24 +666,27 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                             videoId: videoData.videoId,
                             videoTitle: videoData.title,
                             start: cue.start,
-                            correctInst: inst
+                            correctInst: inst,
+                            songIndex: videoData.songIndex
                         });
                     }
                 });
             });
 
-            // 万が一スプレッドシートに該当ステージの楽器データが1つも無い場合の安全装置
             if (allAvailableCues.length === 0) {
                 allAvailableCues.push({
                     videoId: "M7lc1UVf-VE",
                     videoTitle: "データ未登録",
                     start: 0,
-                    correctInst: availableInstruments[0]
+                    correctInst: availableInstruments[0],
+                    songIndex: 0
                 });
             }
 
+            // ★ エラースキップ時の代替のため、最大15問用意しておく
             let lastInstId = -1;
-            for (let i = 0; i < 10; i++) {
+            const targetCount = 15; 
+            for (let i = 0; i < targetCount; i++) {
                 let candidates = allAvailableCues.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
                 if (candidates.length === 0) candidates = allAvailableCues; 
                 
@@ -687,6 +699,7 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                     videoId: selectedCue.videoId,
                     videoTitle: selectedCue.videoTitle,
                     start: selectedCue.start,
+                    songIndex: selectedCue.songIndex,
                     hasError: false,
                     isReady: false
                 });
@@ -699,7 +712,7 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
         function startPreloadForStage() {
             isPreloading = true;
             showScreen('screen-preload');
-            document.getElementById('preload-status-text').textContent = `0 / 10 完了`;
+            document.getElementById('preload-status-text').textContent = `0 / ${gameState.questions.length} 完了`;
             document.getElementById('preload-progress').style.width = '0%';
             
             const ytWrapper = document.getElementById('yt-wrapper');
@@ -815,14 +828,25 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
         }
 
         function playNextQuestion() {
-            if (gameState.currentIndex >= 10) {
+            // ★ 10問完了した、または用意した問題をすべて使い切った場合は結果発表へ
+            if (gameState.answeredCount >= 10 || gameState.currentIndex >= gameState.questions.length) {
                 showResult();
                 return;
             }
 
             const q = gameState.questions[gameState.currentIndex];
+
+            // ★ エラーが発覚しているプレーヤーの場合はスキップし、別の問題(次)へ進む
+            if (q.hasError || !players[gameState.currentIndex]) {
+                if (!q.hasError) q.hasError = true;
+                gameState.errorVideosInfo.push(q); // エラー情報を記録
+                gameState.currentIndex++;
+                playNextQuestion(); // 待たずに次へ
+                return;
+            }
             
-            document.getElementById('question-number').textContent = gameState.currentIndex + 1;
+            // 正常に出題できる場合
+            document.getElementById('question-number').textContent = gameState.answeredCount + 1;
             document.getElementById('timer-bar').style.width = '100%';
             document.getElementById('loading-overlay').classList.remove('hidden');
             document.getElementById('game-ui').classList.add('hidden');
@@ -850,16 +874,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 optionsContainer.appendChild(btn);
             });
 
-            if (q.hasError || !players[gameState.currentIndex]) {
-                document.getElementById('loading-overlay').classList.add('hidden');
-                document.getElementById('game-ui').classList.remove('hidden');
-                
-                setTimeout(() => {
-                    handleAnswer(null, true); 
-                }, 500);
-                return;
-            }
-
             Array.from(document.getElementById('yt-wrapper').children).forEach(child => {
                 if (child.id.startsWith('player-container-')) {
                     child.style.display = (child.id === 'player-container-' + gameState.currentIndex) ? 'block' : 'none';
@@ -871,8 +885,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
             try {
                 const targetPlayer = players[gameState.currentIndex];
                 targetPlayer.unMute();
-                
-                // ★再生の瞬間に改めて指定の秒数へシークさせ、ずれを防ぐ
                 targetPlayer.seekTo(q.start, true);
                 targetPlayer.playVideo();
                 
@@ -920,17 +932,33 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
             buttons.forEach(btn => btn.disabled = true);
 
             if (isErrorSkip) {
-                showFeedback(false, false, true);
-            } else {
-                if (isCorrect) {
-                    const remaining = Math.max(0, 10 - elapsed);
-                    const earned = Math.floor(remaining * 100);
-                    gameState.score += earned;
-                    updateScoreDisplay();
-                }
-                showFeedback(isCorrect, selectedId === null, false);
-                speakText(q.correctInst.name);
+                // プレイ中の突発エラー処理（タイムアウトなど）
+                q.hasError = true;
+                gameState.errorVideosInfo.push(q);
+                showFeedback(false, false, true); // エラー表示
+                
+                document.getElementById('yt-wrapper').classList.remove('show');
+                document.getElementById('yt-video-title').classList.add('hidden');
+                
+                setTimeout(() => {
+                    gameState.currentIndex++;
+                    playNextQuestion();
+                }, 1000); 
+                return; // リザルトへ行くかもしれないので、answeredCountは増やさず終了
             }
+
+            // 正常回答の処理
+            gameState.answeredCount++;
+            gameState.playedQuestions.push(q); // 出題完了として記録
+
+            if (isCorrect) {
+                const remaining = Math.max(0, 10 - elapsed);
+                const earned = Math.floor(remaining * 100);
+                gameState.score += earned;
+                updateScoreDisplay();
+            }
+            showFeedback(isCorrect, selectedId === null, false);
+            speakText(q.correctInst.name);
 
             document.getElementById('yt-wrapper').classList.add('show');
             document.getElementById('yt-video-title').classList.remove('hidden');
@@ -939,7 +967,7 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 document.getElementById('yt-wrapper').classList.remove('show');
                 document.getElementById('yt-video-title').classList.add('hidden');
                 
-                if(players[gameState.currentIndex]) {
+                if(!globalFallback && players[gameState.currentIndex]) {
                     try { players[gameState.currentIndex].pauseVideo(); } catch(e){}
                 }
                 
@@ -956,7 +984,7 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
             textEl.className = '';
 
             if (isErrorSkip) {
-                textEl.innerHTML = '<span class="text-4xl text-gray-500">再生エラー<br>スキップ</span>';
+                textEl.innerHTML = '<span class="text-4xl text-gray-500">再生エラー<br>代替スキップ</span>';
                 textEl.classList.add('timeup'); 
                 playSound('incorrect'); 
             } else if (isTimeUp) {
@@ -984,6 +1012,53 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
         function showResult() {
             showScreen('screen-result');
             
+            // --- プレイデータ・エラー情報のUI更新 ---
+            const errorArea = document.getElementById('result-error-area');
+            const errorList = document.getElementById('result-error-list');
+            if (gameState.errorVideosInfo.length > 0) {
+                errorArea.classList.remove('hidden');
+                errorList.innerHTML = '';
+                // 動画の重複を排除して表示
+                const uniqueErrors = [];
+                const seenErrorIds = new Set();
+                gameState.errorVideosInfo.forEach(q => {
+                    if (!seenErrorIds.has(q.videoId)) {
+                        seenErrorIds.add(q.videoId);
+                        uniqueErrors.push(q);
+                    }
+                });
+                uniqueErrors.forEach(q => {
+                    const li = document.createElement('li');
+                    li.textContent = `リストの ${q.songIndex}番目: ${q.videoTitle}`;
+                    errorList.appendChild(li);
+                });
+            } else {
+                errorArea.classList.add('hidden');
+            }
+
+            const playedList = document.getElementById('result-played-list');
+            playedList.innerHTML = '';
+            const uniquePlayed = [];
+            const seenPlayedIds = new Set();
+            gameState.playedQuestions.forEach(q => {
+                if (!seenPlayedIds.has(q.videoId)) {
+                    seenPlayedIds.add(q.videoId);
+                    uniquePlayed.push(q);
+                }
+            });
+            uniquePlayed.forEach(q => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = `https://www.youtube.com/watch?v=${q.videoId}`;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.className = 'text-blue-500 hover:text-blue-700 hover:underline flex items-center';
+                a.innerHTML = `<i class="fa-solid fa-play-circle mr-1"></i> ${q.songIndex}. ${q.videoTitle}`;
+                li.appendChild(a);
+                playedList.appendChild(li);
+            });
+            // ---------------------------------------
+
             const scoreEl = document.getElementById('result-score');
             const statusEl = document.getElementById('result-status');
             const msgEl = document.getElementById('result-message');
