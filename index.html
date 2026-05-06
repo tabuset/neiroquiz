@@ -683,14 +683,32 @@ ZOcpOQJdQL0,ピーターと狼,60,6`;
                 });
             }
 
-            // ★ エラースキップ時の代替のため、最大15問用意しておく
+            // ★ 出題プール（山札）を作成し、全問題を使い切るまで重複しないようにする
+            let availableCuesPool = [...allAvailableCues].sort(() => 0.5 - Math.random());
             let lastInstId = -1;
             const targetCount = 15; 
+            
             for (let i = 0; i < targetCount; i++) {
-                let candidates = allAvailableCues.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
-                if (candidates.length === 0) candidates = allAvailableCues; 
+                // プールから直前と異なる楽器の候補を探す
+                let candidates = availableCuesPool.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
                 
-                const selectedCue = candidates[Math.floor(Math.random() * candidates.length)];
+                if (candidates.length === 0) {
+                    if (availableCuesPool.length === 0) {
+                        // プールが空になったら、全問題を補充して再シャッフル（山札の作り直し）
+                        availableCuesPool = [...allAvailableCues].sort(() => 0.5 - Math.random());
+                        candidates = availableCuesPool.filter(c => c.correctInst.id !== lastInstId || availableInstruments.length === 1);
+                        if (candidates.length === 0) candidates = availableCuesPool;
+                    } else {
+                        // プールに残りはあるが、直前の楽器と同じものしかない場合
+                        candidates = availableCuesPool;
+                    }
+                }
+                
+                // すでにシャッフルされているので先頭を取得
+                const selectedCue = candidates[0];
+                // プールから消費した問題を削除
+                availableCuesPool.splice(availableCuesPool.indexOf(selectedCue), 1);
+                
                 lastInstId = selectedCue.correctInst.id;
                 
                 gameState.questions.push({
