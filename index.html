@@ -173,7 +173,7 @@
 
             <!-- タイマーバー -->
             <div class="w-full bg-gray-200 h-3 shrink-0">
-                <div id="timer-bar" class="bg-green-500 h-3 transition-all ease-linear" style="width: 100%;"></div>
+                <div id="timer-bar" class="bg-green-500 h-3" style="width: 100%;"></div>
             </div>
 
             <!-- プレイエリア -->
@@ -695,17 +695,14 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
             const mainTargetCount = 10; // 本編10問
             const subTargetCount = 5;   // 予備5問（エラー代替用）
             
-            // 指定された合計問題数の中で、各楽器が正解となるべき回数を割り当てる関数
             function getCounts(targetCount) {
                 const counts = new Map();
                 let remain = targetCount;
-                // ベースとなる割り当て回数（例：10問で3楽器なら各3回）
                 const baseCount = Math.floor(targetCount / availableInstruments.length);
                 availableInstruments.forEach(inst => {
                     counts.set(inst.id, baseCount);
                     remain -= baseCount;
                 });
-                // 余った枠（例：10問で3楽器なら1枠余る）をランダムな楽器に割り当て
                 const shuffledInsts = [...availableInstruments].sort(() => 0.5 - Math.random());
                 for (let i = 0; i < remain; i++) {
                     counts.set(shuffledInsts[i].id, counts.get(shuffledInsts[i].id) + 1);
@@ -716,7 +713,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
             const mainCounts = getCounts(mainTargetCount);
             const subCounts = getCounts(subTargetCount);
 
-            // 割り当てられた回数分だけ、プールから問題を抽出する関数
             function buildQuestionsList(countsMap) {
                 let list = [];
                 countsMap.forEach((count, instId) => {
@@ -726,7 +722,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
                     let pool = [...cuesForInst].sort(() => 0.5 - Math.random());
                     for(let i=0; i < count; i++) {
                         if(pool.length === 0) {
-                            // 問題が足りない場合は、再度シャッフルして使い回す
                             pool = [...cuesForInst].sort(() => 0.5 - Math.random());
                         }
                         list.push(pool.pop());
@@ -738,7 +733,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
             let mainQuestions = buildQuestionsList(mainCounts);
             let subQuestions = buildQuestionsList(subCounts);
 
-            // 本編10問を、同じ楽器がなるべく連続しないようにシャッフルして並べ替える関数
             function shuffleWithNoAdjacentDuplicates(array) {
                 let arr = [...array].sort(() => 0.5 - Math.random());
                 const MAX_ATTEMPTS = 50;
@@ -748,7 +742,6 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
                     for (let i = 0; i < arr.length - 1; i++) {
                         if (arr[i].correctInst.id === arr[i+1].correctInst.id) {
                             hasDuplicate = true;
-                            // 別の要素とスワップして連続を解消する
                             for (let j = 0; j < arr.length; j++) {
                                 if (j !== i && j !== i + 1 && arr[j].correctInst.id !== arr[i].correctInst.id) {
                                     let temp = arr[i+1];
@@ -765,7 +758,7 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
             }
 
             mainQuestions = shuffleWithNoAdjacentDuplicates(mainQuestions);
-            subQuestions = subQuestions.sort(() => 0.5 - Math.random()); // 予備は通常のシャッフル
+            subQuestions = subQuestions.sort(() => 0.5 - Math.random()); 
 
             const finalQuestions = [...mainQuestions, ...subQuestions];
 
@@ -984,11 +977,16 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
             
             function update() {
                 const elapsed = (Date.now() - gameState.startTimeMs) / 1000;
-                const remaining = Math.max(0, 10 - Math.min(10, elapsed));
                 
-                document.getElementById('timer-bar').style.width = (remaining * 10) + '%';
+                // ★最初の1秒間は100%を維持し、その後9秒かけて0%になるよう計算
+                let scoreRatio = 1.0;
+                if (elapsed > 1.0) {
+                    scoreRatio = Math.max(0, (10.0 - elapsed) / 9.0);
+                }
                 
-                if (remaining <= 0) {
+                document.getElementById('timer-bar').style.width = (scoreRatio * 100) + '%';
+                
+                if (elapsed >= 10.0) {
                     handleAnswer(null, false); 
                 } else {
                     gameState.timerId = requestAnimationFrame(update);
@@ -1026,8 +1024,14 @@ ZOcpOQJdQL0,ピーターと狼,60,6,100`;
             gameState.playedQuestions.push(q); 
 
             if (isCorrect) {
-                const remaining = Math.max(0, 10 - elapsed);
-                const earned = Math.floor(remaining * 100);
+                // ★最初の1秒間は1000点、その後9秒かけて0点になるよう計算
+                let earned = 0;
+                if (elapsed <= 1.0) {
+                    earned = 1000;
+                } else {
+                    const remaining = Math.max(0, 10.0 - elapsed);
+                    earned = Math.floor((remaining / 9.0) * 1000);
+                }
                 gameState.score += earned;
                 updateScoreDisplay();
             }
